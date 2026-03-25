@@ -1,0 +1,24 @@
+<!-- 
+  Ajoute ce bloc dans index.html, juste après la div .page-label
+  (ou dans la card-header du tableau, à droite du titre)
+-->
+
+<div class="d-flex flex-wrap gap-2 mb-4">
+  <!-- Export CSV produits -->
+  <a href="{{ url_for('export_csv_produits') }}"
+     class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-filetype-csv me-1"></i>Export produits CSV
+  </a>
+
+  <!-- Export CSV mouvements -->
+  <a href="{{ url_for('export_csv_mouvements') }}"
+     class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-filetype-csv me-1"></i>Export mouvements CSV
+  </a>
+
+  <!-- Export PDF rapport -->
+  <a href="{{ url_for('export_pdf_stock') }}"
+     class="btn btn-outline-danger btn-sm">
+    <i class="bi bi-filetype-pdf me-1"></i>Rapport PDF
+  </a>
+</div>

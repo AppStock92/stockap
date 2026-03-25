@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Modifier fournisseur — StockApp{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-md-6">
+    <a href="{{ url_for('fournisseurs') }}"
+       class="text-muted text-decoration-none d-inline-flex align-items-center gap-1 mb-3"
+       style="font-size:13px">
+      <i class="bi bi-arrow-left"></i> Retour aux fournisseurs
+    </a>
+    <div class="card p-4">
+      <h5 class="fw-semibold mb-1">Modifier le fournisseur</h5>
+      <div class="mb-4" style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#7A7870">
+        ID #{{ fournisseur['id'] }}
+      </div>
+      <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="mb-3">
+          <label class="form-label">Nom <span class="text-danger">*</span></label>
+          <input type="text" name="nom" class="form-control"
+                 value="{{ fournisseur['nom'] }}" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Contact</label>
+          <input type="text" name="contact" class="form-control"
+                 value="{{ fournisseur['contact'] or '' }}" placeholder="Prénom Nom">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Email</label>
+          <input type="email" name="email" class="form-control"
+                 value="{{ fournisseur['email'] or '' }}" placeholder="contact@exemple.com">
+        </div>
+        <div class="mb-4">
+          <label class="form-label">Téléphone</label>
+          <input type="text" name="telephone" class="form-control"
+                 value="{{ fournisseur['telephone'] or '' }}" placeholder="06 00 00 00 00">
+        </div>
+        <div class="d-flex gap-2">
+          <a href="{{ url_for('fournisseurs') }}" class="btn btn-outline-secondary flex-grow-1">
+            Annuler
+          </a>
+          <button type="submit" class="btn btn-brand flex-grow-1">
+            <i class="bi bi-check-lg me-1"></i>Enregistrer
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

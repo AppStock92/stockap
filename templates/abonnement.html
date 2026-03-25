@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}Abonnement — StockApp{% endblock %}
+
+{% block content %}
+<span class="page-label">Abonnement & facturation</span>
+
+<div class="row g-4">
+
+  <!-- Statut actuel -->
+  <div class="col-12 col-md-5">
+    <div class="card p-4 mb-3">
+      <div class="card-header-label mb-3">Votre plan actuel</div>
+
+      {% set plan = plans[entreprise.plan] if entreprise.plan in plans else plans.free %}
+      <div class="d-flex align-items-center gap-3 mb-3">
+        <div style="width:48px;height:48px;border-radius:12px;
+                    background:{% if entreprise.plan == 'pro' %}#1A1A18{% else %}var(--bs-body-bg){% endif %};
+                    display:flex;align-items:center;justify-content:center;font-size:22px">
+          {% if entreprise.plan == 'pro' %}⭐{% else %}📦{% endif %}
+        </div>
+        <div>
+          <div style="font-size:18px;font-weight:600">{{ plan.nom }}</div>
+          <div style="font-size:13px;color:var(--muted)">{{ plan.affichage }}</div>
+        </div>
+      </div>
+
+      {% if entreprise.stripe_status %}
+        <div style="font-size:12px;margin-bottom:1rem">
+          Statut :
+          {% if entreprise.stripe_status == 'active' %}
+            <span style="color:#1D9E75;font-weight:500">● Actif</span>
+          {% elif entreprise.stripe_status == 'past_due' %}
+            <span style="color:#E24B4A;font-weight:500">● Paiement en retard</span>
+          {% elif entreprise.stripe_status == 'canceled' %}
+            <span style="color:var(--muted)">● Annulé</span>
+          {% else %}
+            <span style="color:var(--muted)">{{ entreprise.stripe_status }}</span>
+          {% endif %}
+        </div>
+      {% endif %}
+
+      <!-- Utilisation produits -->
+      {% with nb=entreprise.produits|length, lim=entreprise.limite_produits %}
+      <div style="margin-bottom:1rem">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px">
+          <span style="color:var(--muted)">Produits utilisés</span>
+          <span style="font-family:'IBM Plex Mono',monospace">
+            {{ nb }} / {% if lim > 999 %}∞{% else %}{{ lim }}{% endif %}
+          </span>
+        </div>
+        <div style="height:6px;background:var(--bs-border-color);border-radius:3px;overflow:hidden">
+          <div style="height:100%;border-radius:3px;
+                      width:{% if lim > 999 %}{{ [nb * 2, 100]|min }}{% else %}{{ [(nb / lim * 100)|int, 100]|min }}{% endif %}%;
+                      background:{% if lim <= 999 and nb >= lim %}#E24B4A{% elif lim <= 999 and nb >= lim * 0.8 %}#EF9F27{% else %}#1D9E75{% endif %};
+                      transition:width .4s"></div>
+        </div>
+      </div>
+      {% endwith %}
+
+      {% if entreprise.plan == 'free' %}
+        <form method="POST" action="{{ url_for('stripe_checkout', plan_id='pro') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-brand w-100">
+            <i class="bi bi-arrow-up-circle me-1"></i>Passer au Pro — 9 €/mois
+          </button>
+        </form>
+      {% elif entreprise.stripe_customer_id %}
+        <form method="POST" action="{{ url_for('stripe_portail') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-outline-secondary w-100">
+            <i class="bi bi-credit-card me-1"></i>Gérer l'abonnement
+          </button>
+        </form>
+      {% endif %}
+    </div>
+
+    <!-- Stripe info -->
+    <div class="card p-4" style="font-size:13px;color:var(--muted)">
+      <i class="bi bi-shield-lock me-1"></i>
+      Les paiements sont sécurisés par <strong style="color:var(--bs-body-color)">Stripe</strong>.
+      Nous ne stockons aucune donnée de carte bancaire.
+      <a href="{{ url_for('tarifs') }}" style="display:block;margin-top:8px;color:#185FA5;text-decoration:none">
+        Voir la page des tarifs →
+      </a>
+    </div>
+  </div>
+
+  <!-- Comparaison des plans -->
+  <div class="col-12 col-md-7">
+    <div class="card p-4">
+      <div class="card-header-label mb-3">Comparer les plans</div>
+      <div class="row g-3">
+        {% for plan_id, plan in plans.items() %}
+        <div class="col-6">
+          <div style="border:{% if entreprise.plan == plan_id %}2px solid var(--bs-body-color){% else %}1px solid var(--bs-border-color){% endif %};
+                      border-radius:12px;padding:1.1rem;position:relative;
+                      {% if entreprise.plan == plan_id %}background:var(--bs-body-bg){% endif %}">
+            {% if entreprise.plan == plan_id %}
+              <span style="position:absolute;top:-10px;left:12px;background:var(--bs-body-color);
+                           color:var(--bs-body-bg);font-size:10px;padding:2px 8px;
+                           border-radius:10px;font-family:'IBM Plex Mono',monospace">
+                Plan actuel
+              </span>
+            {% endif %}
+            <div style="font-size:13px;font-weight:600;margin-bottom:2px">{{ plan.nom }}</div>
+            <div style="font-size:20px;font-weight:700;margin-bottom:.75rem">
+              {{ plan.prix }} €<span style="font-size:12px;font-weight:400;color:var(--muted)">/mois</span>
+            </div>
+            {% for feat in plan.features %}
+            <div style="font-size:12px;color:var(--muted);padding:2px 0;display:flex;align-items:center;gap:6px">
+              <span style="color:#1D9E75;font-weight:700;font-size:11px">✓</span>{{ feat }}
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

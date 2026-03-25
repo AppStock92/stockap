@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Mot de passe — StockApp{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-md-6 col-lg-5">
+    <a href="{{ url_for('index') }}" class="text-muted text-decoration-none d-inline-flex align-items-center gap-1 mb-3" style="font-size:13px">
+      <i class="bi bi-arrow-left"></i> Retour
+    </a>
+    <div class="card p-4">
+      <h5 class="fw-semibold mb-1">Changer le mot de passe</h5>
+      <div class="mb-4" style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#7A7870">
+        <i class="bi bi-person me-1"></i>{{ current_user.username }}
+      </div>
+      <form method="POST">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="mb-3">
+          <label class="form-label">Ancien mot de passe</label>
+          <input type="password" name="ancien" class="form-control" required autofocus>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Nouveau mot de passe</label>
+          <input type="password" name="nouveau" class="form-control" required minlength="6" placeholder="6 caractères minimum">
+        </div>
+        <div class="mb-4">
+          <label class="form-label">Confirmer</label>
+          <input type="password" name="confirm" class="form-control" required>
+        </div>
+        <div class="d-flex gap-2">
+          <a href="{{ url_for('index') }}" class="btn btn-outline-secondary flex-grow-1">Annuler</a>
+          <button type="submit" class="btn btn-brand flex-grow-1"><i class="bi bi-check-lg me-1"></i>Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

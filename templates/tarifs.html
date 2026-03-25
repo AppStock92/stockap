@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tarifs — StockApp</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <style>
+    [data-theme="light"]{--bg:#F5F4F0;--surface:#fff;--border:#DDDBD4;--text:#1A1A18;--muted:#7A7870}
+    [data-theme="dark"] {--bg:#141413;--surface:#1E1D1B;--border:#2E2D2A;--text:#E8E6E0;--muted:#888780}
+    body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:3rem 1rem;transition:background .2s}
+    .brand{font-family:'IBM Plex Mono',monospace;font-size:15px;letter-spacing:.05em;text-align:center;margin-bottom:.5rem}
+    .brand span{opacity:.4}
+    h1{font-size:2rem;font-weight:600;text-align:center;margin-bottom:.5rem}
+    .sub{text-align:center;color:var(--muted);font-size:16px;margin-bottom:2.5rem}
+    .plans-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.25rem;max-width:700px;margin:0 auto}
+    .plan-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:1.75rem;position:relative;transition:border-color .2s}
+    .plan-card.featured{border:2px solid var(--text);box-shadow:0 4px 24px rgba(0,0,0,.1)}
+    .popular-tag{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--bg);font-size:11px;font-weight:600;padding:3px 14px;border-radius:20px;white-space:nowrap;font-family:'IBM Plex Mono',monospace}
+    .plan-name{font-size:13px;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.5rem}
+    .plan-price{font-size:2.5rem;font-weight:700;line-height:1;margin-bottom:.25rem}
+    .plan-price span{font-size:14px;font-weight:400;color:var(--muted)}
+    .features{list-style:none;padding:0;margin:1.25rem 0 1.5rem}
+    .features li{font-size:14px;padding:5px 0;color:var(--muted);display:flex;align-items:center;gap:8px}
+    .features li::before{content:"✓";color:#1D9E75;font-weight:700;flex-shrink:0}
+    .btn-plan{display:block;text-align:center;padding:11px;border-radius:9px;font-size:15px;font-weight:500;text-decoration:none;transition:opacity .15s;cursor:pointer;border:none;width:100%;font-family:inherit}
+    .btn-dark{background:var(--text);color:var(--bg)}
+    .btn-dark:hover{opacity:.85;color:var(--bg)}
+    .btn-outline{background:none;border:1px solid var(--border);color:var(--text)}
+    .btn-outline:hover{border-color:var(--text)}
+    .nav-top{display:flex;align-items:center;justify-content:space-between;max-width:700px;margin:0 auto 2.5rem}
+    .faq{max-width:600px;margin:3rem auto 0}
+    .faq h3{font-size:16px;font-weight:500;margin-bottom:.35rem}
+    .faq p{font-size:14px;color:var(--muted);line-height:1.6;margin-bottom:1.5rem}
+  </style>
+</head>
+<body>
+<div style="max-width:760px;margin:0 auto">
+
+  <div class="nav-top">
+    <div class="brand">📦 <span>stock</span>app</div>
+    {% if connecte %}
+      <a href="{{ url_for('index') }}" style="font-size:13px;color:var(--muted);text-decoration:none">
+        ← Mon espace
+      </a>
+    {% else %}
+      <div style="display:flex;gap:12px">
+        <a href="{{ url_for('login') }}"    style="font-size:13px;color:var(--muted);text-decoration:none">Connexion</a>
+        <a href="{{ url_for('register') }}" style="font-size:13px;color:var(--text);text-decoration:none;font-weight:500">S'inscrire →</a>
+      </div>
+    {% endif %}
+  </div>
+
+  <h1>Tarifs simples et transparents</h1>
+  <p class="sub">Commencez gratuitement. Passez au Pro quand vous en avez besoin.</p>
+
+  <div class="plans-grid">
+    {% for plan_id, plan in plans.items() %}
+    <div class="plan-card {% if plan.badge %}featured{% endif %}">
+      {% if plan.badge %}
+        <div class="popular-tag">⭐ {{ plan.badge }}</div>
+      {% endif %}
+
+      <div class="plan-name">{{ plan.nom }}</div>
+      <div class="plan-price">
+        {{ plan.prix }} €<span>/mois</span>
+      </div>
+
+      <ul class="features">
+        {% for feature in plan.features %}
+          <li>{{ feature }}</li>
+        {% endfor %}
+      </ul>
+
+      {% if connecte %}
+        {% if plan_id == 'free' %}
+          <a href="{{ url_for('index') }}" class="btn-plan btn-outline">
+            Votre plan actuel
+          </a>
+        {% else %}
+          <form method="POST" action="{{ url_for('stripe_checkout', plan_id=plan_id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn-plan btn-dark">
+              Passer au Pro →
+            </button>
+          </form>
+        {% endif %}
+      {% else %}
+        <a href="{{ url_for('register') }}" class="btn-plan {% if plan.badge %}btn-dark{% else %}btn-outline{% endif %}">
+          {% if plan.badge %}Commencer — {{ plan.affichage }}{% else %}Démarrer gratuitement{% endif %}
+        </a>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="faq">
+    <h3>Puis-je annuler à tout moment ?</h3>
+    <p>Oui, sans engagement. Vous pouvez annuler depuis votre espace abonnement. Vous gardez le plan Pro jusqu'à la fin de la période payée.</p>
+
+    <h3>Que se passe-t-il si je dépasse 50 produits en plan gratuit ?</h3>
+    <p>L'ajout de nouveaux produits est bloqué. Vos données existantes sont conservées. Passez au Pro pour continuer.</p>
+
+    <h3>Mes données sont-elles en sécurité ?</h3>
+    <p>Oui. Chaque entreprise est totalement isolée. Nous n'avons pas accès à vos données de stock. Les paiements sont gérés par Stripe (certifié PCI-DSS).</p>
+
+    <h3>Y a-t-il un essai gratuit ?</h3>
+    <p>Le plan gratuit est permanent — pas de limite de temps. Vous pouvez utiliser StockApp indéfiniment avec jusqu'à 50 produits.</p>
+  </div>
+</div>
+<script>
+  const s = localStorage.getItem('theme');
+  document.documentElement.setAttribute('data-theme',
+    s || (matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light'));
+</script>
+</body>
+</html>

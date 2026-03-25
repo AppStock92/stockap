@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Créer un compte — StockApp</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <style>
+    [data-theme="light"]{--bg:#F5F4F0;--surface:#fff;--border:#DDDBD4;--text:#1A1A18;--muted:#7A7870;--err-bg:#FEF0EE;--err:#C0392B;--ok:#1E7E4A}
+    [data-theme="dark"] {--bg:#141413;--surface:#1E1D1B;--border:#2E2D2A;--text:#E8E6E0;--muted:#888780;--err-bg:#2E0D0D;--err:#F09595;--ok:#5DCAA5}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:2rem 1rem;transition:background .2s}
+    .brand{font-family:'IBM Plex Mono',monospace;font-size:15px;letter-spacing:.05em;text-align:center;margin-bottom:1.5rem}
+    .brand span{opacity:.4}
+    .wrap{width:100%;max-width:520px}
+    .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:2rem;margin-bottom:1rem}
+    h5{font-size:18px;font-weight:600;margin-bottom:.25rem}
+    .sub{font-size:13px;color:var(--muted);margin-bottom:1.5rem}
+    .form-label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:4px}
+    .form-group{margin-bottom:1rem;position:relative}
+    input[type=text],input[type=email],input[type=password]{width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:15px;color:var(--text);font-family:inherit;transition:border-color .15s}
+    input:focus{outline:none;border-color:var(--text);background:var(--surface)}
+    input.valid{border-color:var(--ok)}
+    input.invalid{border-color:var(--err)}
+    .field-msg{font-size:12px;margin-top:4px;min-height:16px;transition:color .15s}
+    .field-msg.ok{color:var(--ok)}
+    .field-msg.err{color:var(--err)}
+    .strength-bar{height:4px;border-radius:2px;margin-top:6px;background:var(--border);overflow:hidden}
+    .strength-fill{height:100%;border-radius:2px;transition:width .3s,background .3s;width:0}
+
+    /* Plans */
+    .plans{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:1.25rem}
+    .plan-card{border:1.5px solid var(--border);border-radius:10px;padding:1rem;cursor:pointer;transition:all .15s;position:relative}
+    .plan-card:hover{border-color:var(--text)}
+    .plan-card input[type=radio]{position:absolute;opacity:0;width:0;height:0}
+    .plan-card.selected{border-color:var(--text);background:var(--bg)}
+    .plan-badge{display:inline-block;font-size:10px;padding:2px 7px;border-radius:10px;font-weight:500;margin-bottom:4px}
+    .plan-name{font-size:15px;font-weight:600;margin-bottom:2px}
+    .plan-price{font-size:13px;color:var(--muted);margin-bottom:6px}
+    .plan-feature{font-size:12px;color:var(--muted)}
+    .plan-check{position:absolute;top:10px;right:10px;font-size:16px;color:var(--ok);display:none}
+    .plan-card.selected .plan-check{display:block}
+    .popular-badge{position:absolute;top:-8px;left:50%;transform:translateX(-50%);background:#1A1A18;color:#fff;font-size:10px;padding:2px 8px;border-radius:10px;white-space:nowrap}
+
+    /* Errors */
+    .alert-err{background:var(--err-bg);border-left:3px solid var(--err);border-radius:0 6px 6px 0;padding:10px 14px;font-size:13px;color:var(--err);margin-bottom:1rem}
+
+    /* Submit */
+    .btn-submit{width:100%;padding:12px;background:var(--text);color:var(--bg);border:none;border-radius:8px;font-size:15px;font-weight:500;cursor:pointer;font-family:inherit;transition:opacity .15s;margin-top:.5rem}
+    .btn-submit:hover{opacity:.85}
+    .btn-submit:disabled{opacity:.4;cursor:not-allowed}
+    .divider{display:flex;align-items:center;gap:12px;margin:1.25rem 0;color:var(--muted);font-size:13px}
+    .divider::before,.divider::after{content:'';flex:1;border-top:1px solid var(--border)}
+    a.login-link{display:block;text-align:center;font-size:14px;color:var(--muted);text-decoration:none}
+    a.login-link:hover{color:var(--text)}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">📦 <span>stock</span>app</div>
+
+  <div class="card">
+    <h5>Créer votre espace</h5>
+    <p class="sub">Votre entreprise aura son propre espace de stock isolé.</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="alert-err"><i class="bi bi-exclamation-circle me-1"></i>{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    <form method="POST" id="registerForm" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <!-- Choix du plan -->
+      <label class="form-label">Choisissez votre plan</label>
+      <div class="plans" id="planCards">
+        {% for plan in plans %}
+        <label class="plan-card {% if loop.first %}selected{% endif %}" id="card-{{ plan.id }}">
+          <input type="radio" name="plan" value="{{ plan.id }}" {% if loop.first %}checked{% endif %}
+                 onchange="selectPlan('{{ plan.id }}')">
+          {% if not loop.first %}
+            <span class="popular-badge">⭐ Populaire</span>
+          {% endif %}
+          <span class="plan-check"><i class="bi bi-check-circle-fill"></i></span>
+          <div class="plan-badge" style="background:{% if loop.first %}#F5F4F0{% else %}#1A1A18{% endif %};color:{% if loop.first %}#7A7870{% else %}#fff{% endif %}">
+            {{ plan.nom }}
+          </div>
+          <div class="plan-name">{{ plan.prix }}</div>
+          <div class="plan-feature"><i class="bi bi-box-seam me-1"></i>{{ plan.limite }}</div>
+        </label>
+        {% endfor %}
+      </div>
+
+      <!-- Infos entreprise -->
+      <div class="form-group">
+        <label class="form-label">Nom de votre entreprise</label>
+        <input type="text" name="nom_entreprise" id="nom_entreprise"
+               placeholder="Ex : Boutique Martin" required autocomplete="organization"
+               oninput="validateField(this, v => v.length >= 2, 'Minimum 2 caractères', 'Nom valide ✓')">
+        <div class="field-msg" id="msg-nom_entreprise"></div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Nom d'utilisateur</label>
+        <input type="text" name="username" id="username"
+               placeholder="Ex : martin" required autocomplete="username"
+               oninput="validateField(this, v => /^[a-zA-Z0-9._-]{3,}$/.test(v), 'Minimum 3 caractères, lettres/chiffres/tirets', 'Disponible ✓')">
+        <div class="field-msg" id="msg-username"></div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Email</label>
+        <input type="email" name="email" id="email"
+               placeholder="vous@exemple.com" required autocomplete="email"
+               oninput="validateField(this, v => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v), 'Email invalide', 'Email valide ✓')">
+        <div class="field-msg" id="msg-email"></div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Mot de passe</label>
+        <input type="password" name="password" id="password"
+               placeholder="6 caractères minimum" required autocomplete="new-password"
+               oninput="checkPassword(this)">
+        <div class="strength-bar"><div class="strength-fill" id="strengthFill"></div></div>
+        <div class="field-msg" id="msg-password"></div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Confirmer le mot de passe</label>
+        <input type="password" name="confirm" id="confirm"
+               placeholder="Répéter le mot de passe" required autocomplete="new-password"
+               oninput="validateField(this, v => v === document.getElementById('password').value, 'Les mots de passe ne correspondent pas', 'Correspondance ✓')">
+        <div class="field-msg" id="msg-confirm"></div>
+      </div>
+
+      <button type="submit" class="btn-submit" id="submitBtn">
+        Créer mon espace →
+      </button>
+    </form>
+
+    <div class="divider">déjà inscrit ?</div>
+    <a href="{{ url_for('login') }}" class="login-link">Se connecter</a>
+  </div>
+</div>
+
+<script>
+  // Thème
+  const saved = localStorage.getItem('theme');
+  document.documentElement.setAttribute('data-theme',
+    saved || (matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light'));
+
+  // Sélection plan
+  function selectPlan(id) {
+    document.querySelectorAll('.plan-card').forEach(c => c.classList.remove('selected'));
+    document.getElementById('card-' + id).classList.add('selected');
+  }
+
+  // Validation champ
+  function validateField(input, test, errMsg, okMsg) {
+    const msg = document.getElementById('msg-' + input.id);
+    const ok  = test(input.value);
+    input.classList.toggle('valid',   ok);
+    input.classList.toggle('invalid', !ok && input.value.length > 0);
+    if (msg) {
+      msg.textContent = input.value.length === 0 ? '' : (ok ? okMsg : errMsg);
+      msg.className   = 'field-msg ' + (ok ? 'ok' : 'err');
+    }
+    updateSubmit();
+  }
+
+  // Force du mot de passe
+  function checkPassword(input) {
+    const v    = input.value;
+    const fill = document.getElementById('strengthFill');
+    const msg  = document.getElementById('msg-password');
+    let score  = 0;
+    if (v.length >= 6)               score++;
+    if (v.length >= 10)              score++;
+    if (/[A-Z]/.test(v))            score++;
+    if (/[0-9]/.test(v))            score++;
+    if (/[^a-zA-Z0-9]/.test(v))     score++;
+    const levels = [
+      { pct:'0%',   bg:'transparent', label:'' },
+      { pct:'25%',  bg:'#E24B4A',     label:'Trop faible' },
+      { pct:'50%',  bg:'#EF9F27',     label:'Faible' },
+      { pct:'75%',  bg:'#378ADD',     label:'Bon' },
+      { pct:'90%',  bg:'#1D9E75',     label:'Très bon' },
+      { pct:'100%', bg:'#1D9E75',     label:'Excellent ✓' },
+    ];
+    const l = levels[Math.min(score, 5)];
+    fill.style.width      = l.pct;
+    fill.style.background = l.bg;
+    if (msg) {
+      msg.textContent = v.length === 0 ? '' : l.label;
+      msg.className   = 'field-msg ' + (score >= 3 ? 'ok' : 'err');
+    }
+    input.classList.toggle('valid',   score >= 2 && v.length >= 6);
+    input.classList.toggle('invalid', v.length > 0 && (score < 2 || v.length < 6));
+    // Re-validate confirm
+    const conf = document.getElementById('confirm');
+    if (conf.value) validateField(conf,
+      v2 => v2 === v, 'Ne correspond pas', 'Correspondance ✓');
+    updateSubmit();
+  }
+
+  // Activer/désactiver le bouton submit
+  function updateSubmit() {
+    const fields = ['nom_entreprise','username','email','password','confirm'];
+    const allOk  = fields.every(id => {
+      const el = document.getElementById(id);
+      return el && el.classList.contains('valid');
+    });
+    document.getElementById('submitBtn').disabled = !allOk;
+  }
+
+  updateSubmit();
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

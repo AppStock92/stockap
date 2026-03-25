@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — StockApp{% endblock %}
+{% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<span class="page-label">Tableau de bord</span>
+
+<!-- KPIs -->
+<div class="row g-3 mb-4" id="kpi-row">
+  <div class="col-6 col-md-3">
+    <div class="kpi-card"><div class="kpi-accent" style="background:#185FA5"></div>
+      <div class="kpi-label">Références</div><div class="kpi-value" id="k-refs">—</div><div class="kpi-sub">produits</div></div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card"><div class="kpi-accent" style="background:#1E7E4A"></div>
+      <div class="kpi-label">Valeur totale</div><div class="kpi-value" id="k-val">—</div><div class="kpi-sub">stock × prix</div></div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card"><div class="kpi-accent" style="background:#B7651A"></div>
+      <div class="kpi-label">Alertes</div><div class="kpi-value" id="k-alerte" style="color:#B7651A">—</div><div class="kpi-sub">sous le seuil</div></div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card"><div class="kpi-accent" style="background:#C0392B"></div>
+      <div class="kpi-label">Ruptures</div><div class="kpi-value" id="k-rupture" style="color:#C0392B">—</div><div class="kpi-sub">stock = 0</div></div>
+  </div>
+</div>
+
+<!-- Charts -->
+<div class="row g-3 mb-3">
+  <div class="col-12 col-lg-8">
+    <div class="card p-3 h-100">
+      <div class="card-header-label mb-3">Stock par produit</div>
+      <canvas id="chartBar" height="200"></canvas>
+    </div>
+  </div>
+  <div class="col-12 col-lg-4">
+    <div class="card p-3 h-100">
+      <div class="card-header-label mb-3">Répartition statuts</div>
+      <canvas id="chartDoughnut" height="200"></canvas>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-12 col-md-6">
+    <div class="card p-3">
+      <div class="card-header-label mb-3">Alertes & ruptures</div>
+      <div id="alert-list"></div>
+    </div>
+  </div>
+  <div class="col-12 col-md-6">
+    <div class="card p-3">
+      <div class="card-header-label mb-3">Top 5 — valeur en stock</div>
+      <div id="top-list"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const DATA = {{ produits_json | safe }};
+const MONO = "'IBM Plex Mono',monospace";
+
+function animCount(el, target, suffix='') {
+  let v = 0; const inc = target / (700/16);
+  const t = setInterval(() => {
+    v = Math.min(v + inc, target);
+    el.textContent = Math.round(v).toLocaleString('fr-FR') + suffix;
+    if (v >= target) clearInterval(t);
+  }, 16);
+}
+
+const total   = DATA.length;
+const valeur  = DATA.reduce((s,p) => s + p.quantite*p.prix, 0);
+const alerte  = DATA.filter(p => p.quantite>0 && p.quantite<=p.seuil).length;
+const rupture = DATA.filter(p => p.quantite===0).length;
+const ok      = total - alerte - rupture;
+
+animCount(document.getElementById('k-refs'),    total);
+animCount(document.getElementById('k-val'),     Math.round(valeur), ' ' + (window.DEVISE || '€'));
+animCount(document.getElementById('k-alerte'),  alerte);
+animCount(document.getElementById('k-rupture'), rupture);
+
+const sorted = [...DATA].sort((a,b)=>b.quantite-a.quantite).slice(0,10);
+const barColors = sorted.map(p => p.quantite===0?'#F09595':p.quantite<=p.seuil?'#FAC775':'#85B7EB');
+
+new Chart(document.getElementById('chartBar'), {
+  type:'bar',
+  data:{ labels: sorted.map(p=>p.nom.length>13?p.nom.slice(0,12)+'…':p.nom), datasets:[{data:sorted.map(p=>p.quantite),backgroundColor:barColors,borderRadius:4,borderSkipped:false}]},
+  options:{ responsive:true, plugins:{legend:{display:false}}, scales:{ x:{grid:{display:false},ticks:{font:{family:MONO,size:11},color:'#7A7870'}}, y:{grid:{color:'#DDDBD4'},ticks:{font:{family:MONO,size:11},color:'#7A7870'},beginAtZero:true}}}
+});
+
+new Chart(document.getElementById('chartDoughnut'), {
+  type:'doughnut',
+  data:{ labels:['OK','Faible','Rupture'], datasets:[{data:[ok,alerte,rupture],backgroundColor:['#97C459','#EF9F27','#E24B4A'],borderWidth:0,hoverOffset:6}]},
+  options:{ responsive:true, cutout:'68%', plugins:{legend:{position:'bottom',labels:{font:{family:MONO,size:11},color:'#7A7870',padding:12,boxWidth:8,usePointStyle:true,pointStyle:'circle'}}}}
+});
+
+const alertItems = DATA.filter(p=>p.quantite<=p.seuil).sort((a,b)=>a.quantite-b.quantite);
+document.getElementById('alert-list').innerHTML = alertItems.length
+  ? alertItems.map(p=>`<div class="d-flex align-items-center gap-2 py-2 border-bottom">
+      <span style="width:8px;height:8px;border-radius:50%;background:${p.quantite===0?'#E24B4A':'#EF9F27'};flex-shrink:0"></span>
+      <span class="fw-500 flex-grow-1" style="font-size:14px">${p.nom}</span>
+      <span style="font-family:${MONO};font-size:12px;color:#7A7870">${p.quantite}/${p.seuil}</span>
+      <span class="badge ${p.quantite===0?'badge-rupture':'badge-low'}">${p.quantite===0?'Rupture':'Faible'}</span>
+    </div>`).join('')
+  : '<p class="text-muted" style="font-size:13px">Aucune alerte.</p>';
+
+const top5 = [...DATA].sort((a,b)=>(b.quantite*b.prix)-(a.quantite*a.prix)).slice(0,5);
+const maxV = top5[0]?top5[0].quantite*top5[0].prix:1;
+document.getElementById('top-list').innerHTML = top5.map((p,i)=>{
+  const v=p.quantite*p.prix, pct=Math.round(v/maxV*100);
+  return `<div class="d-flex align-items-center gap-2 py-2 border-bottom">
+    <span style="font-family:${MONO};font-size:12px;color:#7A7870;width:16px">${i+1}</span>
+    <span class="flex-grow-1 fw-500" style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px">${p.nom}</span>
+    <div style="flex:1;height:6px;background:#F5F4F0;border-radius:3px;overflow:hidden;min-width:50px"><div style="width:${pct}%;height:100%;background:#185FA5;border-radius:3px"></div></div>
+    <span style="font-family:${MONO};font-size:12px;color:#7A7870;width:50px;text-align:right">${Math.round(v)} ${window.DEVISE||'€'}</span>
+  </div>`;
+}).join('');
+</script>
+{% endblock %}

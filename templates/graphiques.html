@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+{% block title %}Graphiques — StockApp{% endblock %}
+
+{% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+  <span class="page-label mb-0">Graphiques & statistiques</span>
+  <div class="d-flex gap-2">
+    <button class="btn btn-sm btn-outline-secondary {% if not request.args.get('periode') or request.args.get('periode') == '7' %}active{% endif %}" onclick="setPeriod(7, this)">7j</button>
+    <button class="btn btn-sm btn-outline-secondary {% if request.args.get('periode') == '14' %}active{% endif %}" onclick="setPeriod(14, this)">14j</button>
+    <button class="btn btn-sm btn-outline-secondary {% if request.args.get('periode') == '30' %}active{% endif %}" onclick="setPeriod(30, this)">30j</button>
+    <button class="btn btn-sm btn-outline-secondary {% if request.args.get('periode') == '0' %}active{% endif %}" onclick="setPeriod(0, this)">Tout</button>
+  </div>
+</div>
+
+<!-- KPIs -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-accent" style="background:#185FA5"></div>
+      <div class="kpi-label">Total entrées</div>
+      <div class="kpi-value" id="k-entrees">—</div>
+      <div class="kpi-sub">unités reçues</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-accent" style="background:#C0392B"></div>
+      <div class="kpi-label">Total sorties</div>
+      <div class="kpi-value" id="k-sorties">—</div>
+      <div class="kpi-sub">unités expédiées</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-accent" style="background:#1E7E4A"></div>
+      <div class="kpi-label">Solde net</div>
+      <div class="kpi-value" id="k-solde">—</div>
+      <div class="kpi-sub">entrées − sorties</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-accent" style="background:#B7651A"></div>
+      <div class="kpi-label">Mouvements</div>
+      <div class="kpi-value" id="k-mvts">—</div>
+      <div class="kpi-sub">opérations totales</div>
+    </div>
+  </div>
+</div>
+
+<!-- Courbe entrées/sorties -->
+<div class="card mb-3">
+  <div class="card-body">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <span class="card-header-label">Entrées & sorties — courbe journalière</span>
+      <div class="d-flex gap-3" style="font-size:12px">
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#378ADD;margin-right:4px"></span>Entrées</span>
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#E24B4A;margin-right:4px"></span>Sorties</span>
+      </div>
+    </div>
+    <canvas id="chartLine" height="90"></canvas>
+  </div>
+</div>
+
+<!-- 2 graphiques -->
+<div class="row g-3 mb-3">
+  <div class="col-12 col-md-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="card-header-label mb-3">Évolution du stock (cumul)</div>
+        <canvas id="chartArea" height="160"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-6">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="card-header-label mb-3">Répartition statuts</div>
+        <canvas id="chartDoughnut" height="160"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Barres groupées + Top produits -->
+<div class="row g-3">
+  <div class="col-12 col-md-8">
+    <div class="card">
+      <div class="card-body">
+        <div class="card-header-label mb-3">Stock actuel vs seuil d'alerte</div>
+        <canvas id="chartGrouped" height="160"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-12 col-md-4">
+    <div class="card">
+      <div class="card-body">
+        <div class="card-header-label mb-3">Top produits mouvementés</div>
+        <div id="topList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const RAW   = {{ data_json | safe }};
+const MONO  = "'IBM Plex Mono', monospace";
+const DEV   = window.DEVISE || '€';
+
+// Couleurs selon le thème courant
+function getColors() {
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+  return {
+    grid:   dark ? '#2E2D2A' : '#DDDBD4',
+    tick:   dark ? '#888780' : '#7A7870',
+    hover:  dark ? '#252422' : '#FAFAF8',
+  };
+}
+
+const tickStyle = () => ({ font: { family: MONO, size: 11 }, color: getColors().tick });
+const gridStyle = () => ({ color: getColors().grid });
+
+let chartLine, chartArea, chartDoughnut, chartGrouped;
+
+function buildDays(n) {
+  const days = [];
+  for (let i = (n || 30) - 1; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    days.push(d.toISOString().slice(0, 10));
+  }
+  return days;
+}
+
+function mapByDate(arr, days) {
+  const m = {};
+  arr.forEach(r => { m[r.date] = (m[r.date] || 0) + r.total; });
+  return days.map(d => m[d] || 0);
+}
+
+function getLast(n, arr) {
+  if (n === 0) return arr;
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - n);
+  return arr.filter(r => new Date(r.date) >= cutoff);
+}
+
+function fmtDate(d) {
+  const [, mo, da] = d.split('-'); return da + '/' + mo;
+}
+
+function updateKPIs(days) {
+  const e  = getLast(days, RAW.entrees);
+  const s  = getLast(days, RAW.sorties);
+  const te = e.reduce((a, r) => a + r.total, 0);
+  const ts = s.reduce((a, r) => a + r.total, 0);
+  document.getElementById('k-entrees').textContent = te;
+  document.getElementById('k-sorties').textContent = ts;
+  const solde = te - ts;
+  const el = document.getElementById('k-solde');
+  el.textContent = (solde >= 0 ? '+' : '') + solde;
+  el.style.color = solde >= 0 ? '#1E7E4A' : '#C0392B';
+  document.getElementById('k-mvts').textContent = e.length + s.length;
+}
+
+function buildCharts(days) {
+  const allDays = buildDays(days || 30);
+  const labels  = allDays.map(fmtDate);
+  const eData   = mapByDate(getLast(days, RAW.entrees), allDays);
+  const sData   = mapByDate(getLast(days, RAW.sorties), allDays);
+  const C = getColors();
+
+  const commonScales = {
+    x: { grid: { display: false }, ticks: { ...tickStyle(), maxTicksLimit: 10 } },
+    y: { grid: gridStyle(), ticks: tickStyle(), beginAtZero: true }
+  };
+
+  // Courbe entrées/sorties
+  const lineData = {
+    labels,
+    datasets: [
+      { label: 'Entrées', data: eData, borderColor: '#378ADD', backgroundColor: 'rgba(55,138,221,.08)', tension: 0.4, fill: true, pointRadius: 3, borderWidth: 2, pointBackgroundColor: '#378ADD' },
+      { label: 'Sorties', data: sData, borderColor: '#E24B4A', backgroundColor: 'rgba(226,75,74,.06)',  tension: 0.4, fill: true, pointRadius: 3, borderWidth: 2, pointBackgroundColor: '#E24B4A' }
+    ]
+  };
+  if (chartLine) { chartLine.data = lineData; chartLine.options.scales = commonScales; chartLine.update(); }
+  else chartLine = new Chart(document.getElementById('chartLine'), {
+    type: 'line', data: lineData,
+    options: { responsive: true, plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } }, scales: commonScales }
+  });
+
+  // Aire cumul
+  let cumul = 0;
+  const cumulData = allDays.map((_, i) => { cumul += eData[i] - sData[i]; return cumul; });
+  const areaData = {
+    labels,
+    datasets: [{ label: 'Stock cumulé', data: cumulData, borderColor: '#1D9E75', backgroundColor: 'rgba(29,158,117,.1)', tension: 0.35, fill: true, pointRadius: 2, borderWidth: 2 }]
+  };
+  if (chartArea) { chartArea.data = areaData; chartArea.options.scales = commonScales; chartArea.update(); }
+  else chartArea = new Chart(document.getElementById('chartArea'), {
+    type: 'line', data: areaData,
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: commonScales }
+  });
+
+  // Doughnut
+  const ok  = RAW.produits.filter(p => p.quantite > p.seuil).length;
+  const low = RAW.produits.filter(p => p.quantite > 0 && p.quantite <= p.seuil).length;
+  const rup = RAW.produits.filter(p => p.quantite === 0).length;
+  const doughData = {
+    labels: ['OK', 'Faible', 'Rupture'],
+    datasets: [{ data: [ok, low, rup], backgroundColor: ['#97C459', '#EF9F27', '#E24B4A'], borderWidth: 0, hoverOffset: 6 }]
+  };
+  if (chartDoughnut) { chartDoughnut.data = doughData; chartDoughnut.update(); }
+  else chartDoughnut = new Chart(document.getElementById('chartDoughnut'), {
+    type: 'doughnut', data: doughData,
+    options: { responsive: true, cutout: '65%', plugins: { legend: { position: 'bottom', labels: { font: { family: MONO, size: 11 }, color: C.tick, padding: 12, boxWidth: 8, usePointStyle: true, pointStyle: 'circle' } } } }
+  });
+
+  // Barres groupées stock vs seuil
+  const top7 = [...RAW.produits].slice(0, 7);
+  const groupedData = {
+    labels: top7.map(p => p.nom.length > 12 ? p.nom.slice(0, 11) + '…' : p.nom),
+    datasets: [
+      { label: 'Stock actuel', data: top7.map(p => p.quantite), backgroundColor: '#85B7EB', borderRadius: 4 },
+      { label: 'Seuil alerte', data: top7.map(p => p.seuil),    backgroundColor: '#FAC775', borderRadius: 4 }
+    ]
+  };
+  if (chartGrouped) { chartGrouped.data = groupedData; chartGrouped.options.scales = commonScales; chartGrouped.update(); }
+  else chartGrouped = new Chart(document.getElementById('chartGrouped'), {
+    type: 'bar', data: groupedData,
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom', labels: { font: { family: MONO, size: 11 }, color: C.tick, padding: 12, boxWidth: 8, usePointStyle: true, pointStyle: 'rect' } }, tooltip: { mode: 'index' } },
+      scales: commonScales
+    }
+  });
+
+  // Top produits
+  const top = RAW.top_mvt.slice(0, 7);
+  const maxT = top[0]?.total || 1;
+  const colors7 = ['#378ADD','#5DCAA5','#EF9F27','#E24B4A','#7F77DD','#D85A30','#639922'];
+  document.getElementById('topList').innerHTML = top.length
+    ? top.map((t, i) => `
+        <div class="d-flex align-items-center gap-2 py-2 border-bottom" style="font-size:13px">
+          <span style="font-family:${MONO};font-size:11px;color:${C.tick};width:16px">${i+1}</span>
+          <span class="flex-grow-1 fw-500" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.produit_nom}</span>
+          <div style="flex:1;height:6px;background:var(--bs-body-bg);border-radius:3px;overflow:hidden;min-width:40px">
+            <div style="width:${Math.round(t.total/maxT*100)}%;height:100%;background:${colors7[i%7]};border-radius:3px"></div>
+          </div>
+          <span style="font-family:${MONO};font-size:11px;color:${C.tick};width:30px;text-align:right">${t.total}</span>
+        </div>`).join('')
+    : '<p style="font-size:13px;color:var(--muted)">Aucun mouvement enregistré.</p>';
+
+  updateKPIs(days);
+}
+
+// Sélecteur de période
+let currentDays = 7;
+function setPeriod(days, btn) {
+  currentDays = days;
+  document.querySelectorAll('.btn-outline-secondary').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  buildCharts(days);
+}
+
+buildCharts(7);
+
+// Rafraîchir les couleurs si thème change
+document.getElementById('theme-toggle')?.addEventListener('click', () => {
+  setTimeout(() => buildCharts(currentDays), 50);
+});
+</script>
+{% endblock %}

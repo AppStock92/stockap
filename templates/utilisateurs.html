@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}Équipe — StockApp{% endblock %}
+
+{% block content %}
+<span class="page-label">
+  Équipe — {{ entreprise.nom if entreprise else '' }}
+  <span style="font-size:11px;color:var(--muted);margin-left:8px">{{ users|length }} membre(s)</span>
+</span>
+
+<div class="row g-4">
+
+  <!-- Ajouter un membre -->
+  <div class="col-12 col-md-4">
+    <div class="card p-4">
+      <div class="card-header-label mb-3">Inviter un membre</div>
+      <form method="POST" action="{{ url_for('add_utilisateur') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="mb-3">
+          <label class="form-label">Nom d'utilisateur</label>
+          <input type="text" name="username" class="form-control"
+                 placeholder="Ex : jean.dupont" required autocomplete="off">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Mot de passe temporaire</label>
+          <input type="password" name="password" class="form-control"
+                 placeholder="6 caractères min." required minlength="6">
+        </div>
+        <div class="mb-4">
+          <label class="form-label">Rôle</label>
+          <select name="role" class="form-select">
+            <option value="admin">Admin</option>
+            <option value="manager">Manager</option>
+            <option value="operateur" selected>Opérateur</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-brand w-100">
+          <i class="bi bi-person-plus me-1"></i>Inviter
+        </button>
+      </form>
+    </div>
+
+    <!-- Carte des permissions -->
+    <div class="card p-4 mt-3">
+      <div class="card-header-label mb-3">Permissions par rôle</div>
+      <div style="font-size:13px">
+        {% set perms = [
+          ('Voir les produits',     True,  True,  True),
+          ('Ajouter un produit',    True,  True,  False),
+          ('Modifier un produit',   True,  True,  False),
+          ('Supprimer un produit',  True,  False, False),
+          ('Mouvements stock',      True,  True,  False),
+          ('Scanner code-barres',   True,  True,  True),
+          ('Catégories',            True,  True,  False),
+          ('Fournisseurs',          True,  True,  False),
+          ('Exports CSV/PDF',       True,  True,  False),
+          ('Dashboard & graphiques',True,  True,  True),
+          ('Gérer l\'équipe',       True,  False, False),
+          ('Paramètres',            True,  True,  True),
+        ] %}
+        <table style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em">
+              <th style="padding:4px 0;text-align:left">Action</th>
+              <th style="padding:4px 4px;text-align:center">Ad.</th>
+              <th style="padding:4px 4px;text-align:center">Mg.</th>
+              <th style="padding:4px 4px;text-align:center">Op.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for action, adm, mgr, opr in perms %}
+            <tr style="border-top:0.5px solid var(--bs-border-color)">
+              <td style="padding:5px 0;color:var(--muted);font-size:12px">{{ action }}</td>
+              <td style="text-align:center;padding:5px 4px">
+                {% if adm %}<i class="bi bi-check-circle-fill" style="color:#1E7E4A;font-size:13px"></i>
+                {% else %}<i class="bi bi-dash" style="color:var(--muted)"></i>{% endif %}
+              </td>
+              <td style="text-align:center;padding:5px 4px">
+                {% if mgr %}<i class="bi bi-check-circle-fill" style="color:#1E7E4A;font-size:13px"></i>
+                {% else %}<i class="bi bi-dash" style="color:var(--muted)"></i>{% endif %}
+              </td>
+              <td style="text-align:center;padding:5px 4px">
+                {% if opr %}<i class="bi bi-check-circle-fill" style="color:#1E7E4A;font-size:13px"></i>
+                {% else %}<i class="bi bi-dash" style="color:var(--muted)"></i>{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Liste des membres -->
+  <div class="col-12 col-md-8">
+    <div class="card">
+      {% for u in users %}
+      <div class="d-flex align-items-center justify-content-between px-4 py-3
+                  {% if not loop.last %}border-bottom{% endif %}">
+        <div class="d-flex align-items-center gap-3">
+          <!-- Avatar -->
+          <div style="width:38px;height:38px;border-radius:50%;display:flex;
+                      align-items:center;justify-content:center;font-size:15px;font-weight:500;
+                      background:{% if u.role == 'admin' %}#E6F1FB{% elif u.role == 'manager' %}#EAF3DE{% else %}var(--bs-body-bg){% endif %};
+                      color:{% if u.role == 'admin' %}#185FA5{% elif u.role == 'manager' %}#3B6D11{% else %}var(--muted){% endif %}">
+            {{ u.username[0].upper() }}
+          </div>
+          <div>
+            <div class="fw-500 d-flex align-items-center gap-2" style="font-size:14px">
+              {{ u.username }}
+              {% if u.id == current_user.id %}
+                <span style="font-size:10px;background:var(--bs-body-bg);color:var(--muted);
+                             padding:1px 6px;border-radius:10px;border:0.5px solid var(--bs-border-color)">vous</span>
+              {% endif %}
+              {% if not u.email_verifie %}
+                <span style="font-size:10px;background:#FFF4E6;color:#B7651A;
+                             padding:1px 6px;border-radius:10px">email non vérifié</span>
+              {% endif %}
+            </div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">
+              {{ u.email or 'Pas d\'email' }}
+            </div>
+          </div>
+        </div>
+
+        <div class="d-flex align-items-center gap-3">
+          <!-- Badge rôle -->
+          <span style="font-size:11px;padding:3px 10px;border-radius:10px;font-weight:500;
+                {% if u.role == 'admin' %}background:#E6F1FB;color:#185FA5;
+                {% elif u.role == 'manager' %}background:#EAF3DE;color:#3B6D11;
+                {% else %}background:var(--bs-body-bg);color:var(--muted);border:0.5px solid var(--bs-border-color);
+                {% endif %}">
+            {% if u.role == 'admin' %}<i class="bi bi-shield-check me-1"></i>Admin
+            {% elif u.role == 'manager' %}<i class="bi bi-person-check me-1"></i>Manager
+            {% else %}<i class="bi bi-person me-1"></i>Opérateur{% endif %}
+          </span>
+
+          <!-- Changer rôle -->
+          {% if u.id != current_user.id %}
+          <form method="POST" action="{{ url_for('changer_role', id=u.id) }}" class="d-flex gap-1">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <select name="role" class="form-select form-select-sm" style="font-size:12px;width:auto"
+                    onchange="this.form.submit()">
+              <option value="admin"    {% if u.role == 'admin'    %}selected{% endif %}>Admin</option>
+              <option value="manager"  {% if u.role == 'manager'  %}selected{% endif %}>Manager</option>
+              <option value="operateur"{% if u.role == 'operateur'%}selected{% endif %}>Opérateur</option>
+            </select>
+          </form>
+
+          <!-- Supprimer -->
+          <form method="POST" action="{{ url_for('delete_utilisateur', id=u.id) }}"
+                onsubmit="return confirm('Supprimer {{ u.username }} ?')">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-sm btn-outline-danger">
+              <i class="bi bi-trash"></i>
+            </button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+      {% else %}
+        <div class="text-center text-muted py-5">Aucun membre.</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

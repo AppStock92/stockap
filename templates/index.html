@@ -1,0 +1,307 @@
+{% extends "base.html" %}
+{% block title %}Produits — StockApp
+{% if show_onboarding %}
+<script>
+// Surligner le bouton "Ajouter" si aucun produit
+document.addEventListener('DOMContentLoaded', function() {
+  const addBtn = document.querySelector('[data-ob-target="add-product"]');
+  if (addBtn) {
+    addBtn.style.boxShadow = '0 0 0 3px rgba(29,158,117,.4)';
+    addBtn.style.transition = 'box-shadow .3s';
+    setTimeout(() => {
+      if (addBtn) addBtn.style.boxShadow = '';
+    }, 3000);
+  }
+});
+</script>
+{% endif %}
+
+{% endblock %}
+
+{% block content %}
+<span class="page-label">Gestion des produits</span>
+
+<!-- KPIs -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-accent" style="background:#185FA5"></div>
+      <div class="kpi-label">Références</div>
+      <div class="kpi-value">{{ produits|length }}</div>
+      <div class="kpi-sub">produits enregistrés</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-accent" style="background:#1E7E4A"></div>
+      <div class="kpi-label">Valeur stock</div>
+      <div class="kpi-value">
+        {% set total = namespace(v=0) %}
+        {% for p in produits %}{% set total.v = total.v + p['quantite'] * p['prix'] %}{% endfor %}
+        {{ "%.0f"|format(total.v) }} {{ devise }}
+      </div>
+      <div class="kpi-sub">stock × prix unitaire</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-accent" style="background:#B7651A"></div>
+      <div class="kpi-label">Alertes</div>
+      <div class="kpi-value text-warning">
+        {% set alerte = namespace(n=0) %}
+        {% for p in produits %}{% if p['quantite'] <= p['seuil'] and p['quantite'] > 0 %}{% set alerte.n = alerte.n + 1 %}{% endif %}{% endfor %}
+        {{ alerte.n }}
+      </div>
+      <div class="kpi-sub">en dessous du seuil</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-accent" style="background:#C0392B"></div>
+      <div class="kpi-label">Ruptures</div>
+      <div class="kpi-value text-danger">
+        {% set rupture = namespace(n=0) %}
+        {% for p in produits %}{% if p['quantite'] == 0 %}{% set rupture.n = rupture.n + 1 %}{% endif %}{% endfor %}
+        {{ rupture.n }}
+      </div>
+      <div class="kpi-sub">stock = 0</div>
+    </div>
+  </div>
+</div>
+
+<!-- Boutons export -->
+<div class="d-flex flex-wrap gap-2 mb-3">
+  <a href="{{ url_for('export_csv_produits') }}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-filetype-csv me-1"></i>Export produits CSV
+  </a>
+  <a href="{{ url_for('export_csv_mouvements') }}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-filetype-csv me-1"></i>Export mouvements CSV
+  </a>
+  <a href="{{ url_for('export_pdf_stock') if est_pro else url_for('abonnement') }}" class="btn btn-outline-danger btn-sm">
+    <i class="bi bi-filetype-pdf me-1"></i>Rapport PDF
+  </a>
+</div>
+
+<!-- Formulaire ajout -->
+<div class="card mb-4">
+  <div class="card-body">
+    <div class="card-header-label mb-3">Ajouter un produit</div>
+    <form method="POST" action="{{ url_for('add') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="row g-2 align-items-end">
+        <div class="col-12 col-md">
+          <label class="form-label">Nom du produit</label>
+          <input type="text" name="nom" class="form-control" placeholder="Ex : Clavier mécanique" required>
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label">Quantité</label>
+          <input type="number" name="quantite" class="form-control" placeholder="0" min="0" required>
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label">Prix (€)</label>
+          <input type="number" name="prix" class="form-control" step="0.01" placeholder="0.00" min="0" required>
+        </div>
+        <div class="col-6 col-md-1">
+          <label class="form-label">Seuil</label>
+          <input type="number" name="seuil" class="form-control" placeholder="5" min="0" value="5">
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label">Catégorie</label>
+          <select name="categorie_id" class="form-select">
+            <option value="">— Aucune —</option>
+            {% for cat in categories %}
+              <option value="{{ cat['id'] }}">{{ cat['nom'] }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-6 col-md-2">
+          <label class="form-label">Fournisseur</label>
+          <select name="fournisseur_id" class="form-select">
+            <option value="">— Aucun —</option>
+            {% for f in fournisseurs %}
+              <option value="{{ f['id'] }}">{{ f['nom'] }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-6 col-md-auto">
+          <button type="submit" class="btn btn-brand w-100">
+            <i class="bi bi-plus-lg me-1"></i>Ajouter
+          </button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Tableau + Cartes -->
+<div class="card">
+  <div class="card-header bg-transparent border-bottom d-flex align-items-center justify-content-between py-3">
+    <span class="card-header-label mb-0">Produits ({{ produits|length }})</span>
+    <input type="text" id="searchInput" class="form-control form-control-sm w-auto"
+           placeholder="Rechercher…" style="max-width:200px" oninput="filterTable(this.value)">
+  </div>
+
+  <!-- Desktop -->
+  <div class="table-responsive d-none d-md-block">
+    <table class="table table-hover mb-0" id="productTable">
+      <thead>
+        <tr>
+          <th>Nom</th><th>Catégorie</th><th>Fournisseur</th>
+          <th>Qté</th><th>Seuil</th><th>Prix</th>
+          <th>Statut</th><th>Mouvement</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if produits %}
+          {% for p in produits %}
+          <tr>
+            <td>
+              <span class="fw-500">{{ p['nom'] }}</span>
+              <div class="table-mono text-muted">#{{ p['id'] }}</div>
+            </td>
+            <td>
+              {% if p['categorie_nom'] %}
+                <span class="badge" style="background:#EFF8F3;color:#1E7E4A;font-family:var(--mono);font-size:11px">
+                  {{ p['categorie_nom'] }}
+                </span>
+              {% else %}
+                <span class="text-muted" style="font-size:12px">—</span>
+              {% endif %}
+            </td>
+            <td>
+              <span style="font-size:13px">{{ p['fournisseur_nom'] or '—' }}</span>
+            </td>
+            <td class="table-mono fw-bold">{{ p['quantite'] }}</td>
+            <td class="table-mono text-muted">{{ p['seuil'] }}</td>
+            <td class="table-mono">{{ "%.2f"|format(p['prix']) }} {{ devise }}</td>
+            <td>
+              {% if p['quantite'] == 0 %}
+                <span class="badge badge-rupture">Rupture</span>
+              {% elif p['quantite'] <= p['seuil'] %}
+                <span class="badge badge-low">Faible</span>
+              {% else %}
+                <span class="badge badge-ok">OK</span>
+              {% endif %}
+            </td>
+            <td>
+              <form method="POST" action="{{ url_for('mouvement', id=p['id']) }}"
+                    class="d-flex align-items-center gap-1">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="number" name="qte" value="1" min="1"
+                       class="form-control form-control-sm" style="width:60px">
+                <button type="submit" name="action" value="entree" class="btn btn-sm btn-success">
+                  <i class="bi bi-plus"></i>
+                </button>
+                <button type="submit" name="action" value="sortie" class="btn btn-sm btn-outline-danger">
+                  <i class="bi bi-dash"></i>
+                </button>
+              </form>
+            </td>
+            <td>
+              <div class="d-flex gap-1">
+                <a href="{{ url_for('update', id=p['id']) }}" class="btn btn-sm btn-outline-secondary">
+                  <i class="bi bi-pencil"></i>
+                </a>
+                <form method="POST" action="{{ url_for('delete', id=p['id']) }}"
+                      onsubmit="return confirm('Supprimer ce produit ?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-sm btn-outline-danger">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="9" class="text-center text-muted py-4">
+              Aucun produit — ajoutez-en un ci-dessus.
+            </td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Mobile cards -->
+  <div class="d-md-none" id="mobileCards">
+    {% if produits %}
+      {% for p in produits %}
+      <div class="p-3 border-bottom product-card-mobile">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div>
+            <div class="fw-500">{{ p['nom'] }}</div>
+            <div class="table-mono text-muted" style="font-size:12px">ref #{{ p['id'] }}</div>
+            <div class="d-flex gap-1 mt-1 flex-wrap">
+              {% if p['categorie_nom'] %}
+                <span class="badge" style="background:#EFF8F3;color:#1E7E4A;font-size:11px">
+                  {{ p['categorie_nom'] }}
+                </span>
+              {% endif %}
+              {% if p['fournisseur_nom'] %}
+                <span class="badge bg-light text-dark border" style="font-size:11px">
+                  {{ p['fournisseur_nom'] }}
+                </span>
+              {% endif %}
+            </div>
+          </div>
+          {% if p['quantite'] == 0 %}
+            <span class="badge badge-rupture">Rupture</span>
+          {% elif p['quantite'] <= p['seuil'] %}
+            <span class="badge badge-low">Faible</span>
+          {% else %}
+            <span class="badge badge-ok">OK</span>
+          {% endif %}
+        </div>
+        <div class="d-flex gap-3 mb-2 text-muted" style="font-size:13px">
+          <span>Stock : <strong class="text-dark">{{ p['quantite'] }}</strong></span>
+          <span>Seuil : <strong class="text-dark">{{ p['seuil'] }}</strong></span>
+          <span>Prix : <strong class="text-dark">{{ "%.2f"|format(p['prix']) }} {{ devise }}</strong></span>
+        </div>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          <form method="POST" action="{{ url_for('mouvement', id=p['id']) }}"
+                class="d-flex align-items-center gap-1">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="number" name="qte" value="1" min="1"
+                   class="form-control form-control-sm" style="width:55px">
+            <button type="submit" name="action" value="entree" class="btn btn-sm btn-success">
+              <i class="bi bi-plus"></i> Entrée
+            </button>
+            <button type="submit" name="action" value="sortie" class="btn btn-sm btn-outline-danger">
+              <i class="bi bi-dash"></i> Sortie
+            </button>
+          </form>
+          <a href="{{ url_for('update', id=p['id']) }}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-pencil"></i>
+          </a>
+          <form method="POST" action="{{ url_for('delete', id=p['id']) }}"
+                onsubmit="return confirm('Supprimer ?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-sm btn-outline-danger">
+              <i class="bi bi-trash"></i>
+            </button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="text-center text-muted py-4">Aucun produit.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterTable(q) {
+  q = q.toLowerCase();
+  document.querySelectorAll('#productTable tbody tr').forEach(tr => {
+    tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+  document.querySelectorAll('.product-card-mobile').forEach(card => {
+    card.style.display = card.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

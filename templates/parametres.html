@@ -1,0 +1,447 @@
+{% extends "base.html" %}
+{% block title %}Paramètres — StockApp{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <span class="page-label mb-0">Paramètres</span>
+  {% if entreprise %}
+  <span style="font-size:12px;font-family:var(--mono);color:var(--muted)">
+    {{ entreprise.nom }}
+    <span style="margin-left:6px;background:{% if est_pro %}#1A1A18{% else %}var(--bs-body-bg){% endif %};
+                 color:{% if est_pro %}#fff{% else %}var(--muted){% endif %};
+                 padding:2px 8px;border-radius:6px;font-size:10px;
+                 border:1px solid var(--bs-border-color)">
+      {{ plan_actuel | upper }}
+    </span>
+  </span>
+  {% endif %}
+</div>
+
+<div class="row g-0">
+
+  <!-- ── Sidebar navigation ─────────────────────────────── -->
+  <div class="col-12 col-md-3 mb-3 mb-md-0">
+    <div class="card p-2" style="position:sticky;top:70px">
+      {% set tabs = [
+        ('profil',      'bi-person',       'Profil'),
+        ('devise',      'bi-currency-exchange', 'Devise & affichage'),
+        ('securite',    'bi-shield-lock',  'Sécurité'),
+        ('email',       'bi-envelope',     'Alertes email'),
+      ] %}
+      {% if est_admin %}
+        {% set tabs = tabs + [
+          ('equipe',    'bi-people',       'Équipe'),
+          ('abonnement','bi-credit-card',  'Abonnement'),
+        ] %}
+      {% endif %}
+
+      {% for tab_id, icon, label in tabs %}
+      <button onclick="showTab('{{ tab_id }}')"
+              id="btn-{{ tab_id }}"
+              class="tab-btn {% if loop.first %}active{% endif %}"
+              style="width:100%;text-align:left;background:none;border:none;
+                     border-radius:8px;padding:9px 12px;font-size:13px;
+                     cursor:pointer;display:flex;align-items:center;gap:10px;
+                     color:var(--bs-body-color);transition:background .12s;
+                     font-family:var(--bs-body-font-family)">
+        <i class="bi {{ icon }}" style="font-size:15px;width:18px;color:var(--muted)"></i>
+        {{ label }}
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- ── Contenu des onglets ────────────────────────────── -->
+  <div class="col-12 col-md-9 ps-md-4">
+
+    <!-- ═══ PROFIL ═══════════════════════════════════════ -->
+    <div id="tab-profil" class="tab-content">
+      <div class="card p-4">
+        <div class="card-header-label mb-4">Informations du profil</div>
+
+        <div class="d-flex align-items-center gap-3 mb-4">
+          <div style="width:56px;height:56px;border-radius:50%;
+                      background:var(--bs-body-bg);border:1px solid var(--bs-border-color);
+                      display:flex;align-items:center;justify-content:center;
+                      font-size:22px;font-weight:600;color:var(--muted)">
+            {{ current_user.username[0] | upper }}
+          </div>
+          <div>
+            <div style="font-size:16px;font-weight:500">{{ current_user.username }}</div>
+            <div style="font-size:12px;color:var(--muted)">
+              <span style="background:{% if current_user.role == 'admin' %}#E6F1FB{% elif current_user.role == 'manager' %}#EAF3DE{% else %}var(--bs-body-bg){% endif %};
+                           color:{% if current_user.role == 'admin' %}#185FA5{% elif current_user.role == 'manager' %}#3B6D11{% else %}var(--muted){% endif %};
+                           padding:2px 8px;border-radius:6px;font-size:11px">
+                {{ current_user.role | capitalize }}
+              </span>
+              {% if entreprise %}
+              <span class="ms-2">· {{ entreprise.nom }}</span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+
+        <div class="row g-3">
+          <div class="col-12 col-sm-6">
+            <label class="form-label">Nom d'utilisateur</label>
+            <input type="text" class="form-control" value="{{ current_user.username }}" disabled
+                   style="opacity:.6">
+            <div class="form-text">Non modifiable</div>
+          </div>
+          <div class="col-12 col-sm-6">
+            <label class="form-label">Email</label>
+            <input type="text" class="form-control"
+                   value="{{ current_user.email or 'Non défini' }}" disabled
+                   style="opacity:.6">
+            <div class="form-text">Modifiable dans "Alertes email"</div>
+          </div>
+        </div>
+
+        <div class="mt-3 pt-3" style="border-top:1px solid var(--bs-border-color)">
+          <div style="font-size:12px;color:var(--muted)">
+            <i class="bi bi-shield-check me-1"></i>
+            Email vérifié :
+            {% if current_user.email_verifie %}
+              <span style="color:#1D9E75">✓ Oui</span>
+            {% else %}
+              <span style="color:#E24B4A">✗ Non</span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ DEVISE ════════════════════════════════════════ -->
+    <div id="tab-devise" class="tab-content" style="display:none">
+      <div class="card p-4">
+        <div class="card-header-label mb-4">Devise & affichage</div>
+        <form method="POST" action="{{ url_for('parametres_email') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="email" value="{{ current_user.email or '' }}">
+          <div class="mb-4">
+            <label class="form-label">Devise d'affichage</label>
+            <select name="devise" class="form-select" id="deviseSelect"
+                    onchange="previewDevise(this.value)" style="max-width:360px">
+              {% set devises = [
+                ('€',   'Euro — EUR'),
+                ('$',   'Dollar américain — USD'),
+                ('£',   'Livre sterling — GBP'),
+                ('CHF', 'Franc suisse — CHF'),
+                ('MAD', 'Dirham marocain — MAD'),
+                ('TND', 'Dinar tunisien — TND'),
+                ('DZD', 'Dinar algérien — DZD'),
+                ('XOF', 'Franc CFA — XOF'),
+                ('CAD', 'Dollar canadien — CAD'),
+                ('AED', 'Dirham EAU — AED'),
+                ('SAR', 'Riyal saoudien — SAR'),
+                ('JPY', 'Yen japonais — JPY'),
+                ('CNY', 'Yuan chinois — CNY'),
+              ] %}
+              {% for symbole, label in devises %}
+                <option value="{{ symbole }}"
+                  {% if (current_user.devise or '€') == symbole %}selected{% endif %}>
+                  {{ symbole }} — {{ label }}
+                </option>
+              {% endfor %}
+            </select>
+            <div class="form-text mt-2">
+              Aperçu : <strong id="devisePreview">89.99 {{ current_user.devise or '€' }}</strong>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-brand">
+            <i class="bi bi-check-lg me-1"></i>Enregistrer la devise
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- ═══ SÉCURITÉ ══════════════════════════════════════ -->
+    <div id="tab-securite" class="tab-content" style="display:none">
+      <div class="card p-4">
+        <div class="card-header-label mb-4">Changer le mot de passe</div>
+        <form method="POST" action="{{ url_for('changer_mdp') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="mb-3" style="max-width:400px">
+            <label class="form-label">Mot de passe actuel</label>
+            <input type="password" name="ancien" class="form-control"
+                   placeholder="••••••••" required autocomplete="current-password">
+          </div>
+          <div class="mb-3" style="max-width:400px">
+            <label class="form-label">Nouveau mot de passe</label>
+            <input type="password" name="nouveau" class="form-control"
+                   placeholder="6 caractères minimum" required minlength="6"
+                   autocomplete="new-password">
+          </div>
+          <div class="mb-4" style="max-width:400px">
+            <label class="form-label">Confirmer le mot de passe</label>
+            <input type="password" name="confirm" class="form-control"
+                   placeholder="Répéter le mot de passe" required
+                   autocomplete="new-password">
+          </div>
+          <button type="submit" class="btn btn-brand">
+            <i class="bi bi-key me-1"></i>Mettre à jour le mot de passe
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- ═══ EMAIL ═════════════════════════════════════════ -->
+    <div id="tab-email" class="tab-content" style="display:none">
+      <div class="card p-4 mb-3">
+        <div class="card-header-label mb-4">Alertes email</div>
+        <form method="POST" action="{{ url_for('parametres_email') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="devise" value="{{ current_user.devise or '€' }}">
+          <div class="mb-4" style="max-width:400px">
+            <label class="form-label">Adresse email</label>
+            <input type="email" name="email" class="form-control"
+                   value="{{ current_user.email or '' }}"
+                   placeholder="vous@exemple.com">
+            <div class="form-text">
+              Utilisée pour les alertes de stock bas et les rapports.
+            </div>
+          </div>
+          <button type="submit" class="btn btn-brand">
+            <i class="bi bi-check-lg me-1"></i>Enregistrer l'email
+          </button>
+        </form>
+      </div>
+
+      <!-- Envoi manuel -->
+      <div class="card p-4">
+        <div class="card-header-label mb-3">Rapport d'alertes</div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:1rem">
+          Envoie immédiatement un rapport avec tous les produits en alerte.
+        </p>
+        {% if est_pro %}
+        <form method="POST" action="{{ url_for('envoyer_rapport_alertes') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-outline-warning">
+            <i class="bi bi-send me-1"></i>Envoyer le rapport maintenant
+          </button>
+        </form>
+        {% else %}
+        <a href="{{ url_for('abonnement') }}"
+           class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+          <i class="bi bi-lock"></i>Alertes email — Plan Pro requis
+        </a>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- ═══ ÉQUIPE (admin uniquement) ════════════════════ -->
+    {% if est_admin %}
+    <div id="tab-equipe" class="tab-content" style="display:none">
+      <div class="card p-4 mb-3">
+        <div class="card-header-label mb-4">Inviter un membre</div>
+        <form method="POST" action="{{ url_for('add_utilisateur') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="row g-3">
+            <div class="col-12 col-sm-4">
+              <label class="form-label">Nom d'utilisateur</label>
+              <input type="text" name="username" class="form-control"
+                     placeholder="jean.dupont" required>
+            </div>
+            <div class="col-12 col-sm-4">
+              <label class="form-label">Mot de passe temporaire</label>
+              <input type="password" name="password" class="form-control"
+                     placeholder="6 caractères min." required minlength="6">
+            </div>
+            <div class="col-12 col-sm-4">
+              <label class="form-label">Rôle</label>
+              <select name="role" class="form-select">
+                <option value="admin">Admin</option>
+                <option value="manager">Manager</option>
+                <option value="operateur" selected>Opérateur</option>
+              </select>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-brand mt-3">
+            <i class="bi bi-person-plus me-1"></i>Inviter
+          </button>
+        </form>
+      </div>
+
+      <!-- Liste membres -->
+      <div class="card">
+        <div class="px-4 py-3 border-bottom">
+          <span class="card-header-label">
+            Membres ({{ users | length if users else '0' }})
+          </span>
+        </div>
+        {% set users = users if users is defined else [] %}
+        {% for u in users %}
+        <div class="d-flex align-items-center justify-content-between px-4 py-3
+                    {% if not loop.last %}border-bottom{% endif %}">
+          <div class="d-flex align-items-center gap-3">
+            <div style="width:36px;height:36px;border-radius:50%;
+                        background:{% if u.role == 'admin' %}#E6F1FB{% elif u.role == 'manager' %}#EAF3DE{% else %}var(--bs-body-bg){% endif %};
+                        color:{% if u.role == 'admin' %}#185FA5{% elif u.role == 'manager' %}#3B6D11{% else %}var(--muted){% endif %};
+                        display:flex;align-items:center;justify-content:center;
+                        font-size:14px;font-weight:600">
+              {{ u.username[0] | upper }}
+            </div>
+            <div>
+              <div style="font-size:14px;font-weight:500">
+                {{ u.username }}
+                {% if u.id == current_user.id %}
+                  <span style="font-size:10px;background:var(--bs-body-bg);color:var(--muted);
+                               padding:1px 6px;border-radius:10px;
+                               border:0.5px solid var(--bs-border-color)">vous</span>
+                {% endif %}
+              </div>
+              <div style="font-size:12px;color:var(--muted)">{{ u.email or '—' }}</div>
+            </div>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <span style="font-size:11px;padding:2px 8px;border-radius:6px;
+                  background:{% if u.role == 'admin' %}#E6F1FB{% elif u.role == 'manager' %}#EAF3DE{% else %}var(--bs-body-bg){% endif %};
+                  color:{% if u.role == 'admin' %}#185FA5{% elif u.role == 'manager' %}#3B6D11{% else %}var(--muted){% endif %}">
+              {{ u.role }}
+            </span>
+            {% if u.id != current_user.id %}
+            <form method="POST" action="{{ url_for('changer_role', id=u.id) }}" class="mb-0">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <select name="role" class="form-select form-select-sm"
+                      style="font-size:11px;width:auto;padding:2px 6px"
+                      onchange="this.form.submit()">
+                <option value="admin"    {% if u.role=='admin'    %}selected{% endif %}>Admin</option>
+                <option value="manager"  {% if u.role=='manager'  %}selected{% endif %}>Manager</option>
+                <option value="operateur"{% if u.role=='operateur'%}selected{% endif %}>Opérateur</option>
+              </select>
+            </form>
+            <form method="POST" action="{{ url_for('delete_utilisateur', id=u.id) }}"
+                  onsubmit="return confirm('Supprimer {{ u.username }} ?')">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+        {% else %}
+        <div class="text-center text-muted py-4" style="font-size:13px">
+          Aucun membre dans votre équipe.
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- ═══ ABONNEMENT (admin uniquement) ════════════════ -->
+    <div id="tab-abonnement" class="tab-content" style="display:none">
+      <div class="card p-4 mb-3">
+        <div class="card-header-label mb-3">Plan actuel</div>
+        <div class="d-flex align-items-center gap-3 mb-4">
+          <div style="width:48px;height:48px;border-radius:12px;
+                      background:{% if est_pro %}#1A1A18{% else %}var(--bs-body-bg){% endif %};
+                      border:1px solid var(--bs-border-color);
+                      display:flex;align-items:center;justify-content:center;font-size:22px">
+            {% if est_pro %}⭐{% else %}📦{% endif %}
+          </div>
+          <div>
+            <div style="font-size:18px;font-weight:600">{{ plan_actuel | capitalize }}</div>
+            <div style="font-size:13px;color:var(--muted)">
+              {% if est_pro %}9 €/mois{% else %}Gratuit{% endif %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Utilisation produits -->
+        {% if entreprise %}
+        {% set nb = entreprise.produits | length %}
+        {% set lim = limites.produits if limites else 50 %}
+        <div class="mb-4">
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px">
+            <span style="color:var(--muted)">Produits utilisés</span>
+            <span style="font-family:var(--mono)">{{ nb }} / {% if lim > 999 %}∞{% else %}{{ lim }}{% endif %}</span>
+          </div>
+          <div style="height:6px;background:var(--bs-border-color);border-radius:3px;overflow:hidden">
+            <div style="height:100%;border-radius:3px;
+                        width:{% if lim > 999 %}{{ [nb*2,100]|min }}{% else %}{{ [(nb/lim*100)|int,100]|min }}{% endif %}%;
+                        background:{% if lim<=999 and nb>=lim %}#E24B4A{% elif lim<=999 and nb>=lim*0.8 %}#EF9F27{% else %}#1D9E75{% endif %}"></div>
+          </div>
+        </div>
+        {% endif %}
+
+        {% if not est_pro %}
+        <form method="POST" action="{{ url_for('stripe_checkout', plan_id='pro') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-brand">
+            <i class="bi bi-arrow-up-circle me-1"></i>Passer au Pro — 9 €/mois
+          </button>
+        </form>
+        {% elif entreprise and entreprise.stripe_customer_id %}
+        <form method="POST" action="{{ url_for('stripe_portail') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-outline-secondary">
+            <i class="bi bi-credit-card me-1"></i>Gérer l'abonnement
+          </button>
+        </form>
+        {% endif %}
+      </div>
+
+      <!-- Comparaison plans -->
+      <div class="card p-4">
+        <div class="card-header-label mb-3">Comparaison des plans</div>
+        <div class="row g-3">
+          {% for plan_id, plan in plans.items() %}
+          <div class="col-6">
+            <div style="border:{% if plan_actuel==plan_id %}2px solid var(--bs-body-color){% else %}1px solid var(--bs-border-color){% endif %};
+                        border-radius:10px;padding:1rem;position:relative">
+              {% if plan_actuel == plan_id %}
+              <span style="position:absolute;top:-10px;left:12px;background:var(--bs-body-color);
+                           color:var(--bs-body-bg);font-size:10px;padding:2px 8px;
+                           border-radius:10px;font-family:var(--mono)">Actuel</span>
+              {% endif %}
+              <div style="font-size:14px;font-weight:600;margin-bottom:2px">{{ plan.nom }}</div>
+              <div style="font-size:20px;font-weight:700;margin-bottom:.6rem">
+                {{ plan.prix }} €<span style="font-size:12px;font-weight:400;color:var(--muted)">/mois</span>
+              </div>
+              {% for feat in plan.features %}
+              <div style="font-size:12px;color:var(--muted);padding:2px 0;display:flex;gap:6px">
+                <span style="color:#1D9E75;font-weight:700">✓</span>{{ feat }}
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showTab(id) {
+  document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + id).style.display = 'block';
+  document.getElementById('btn-' + id).classList.add('active');
+}
+
+function previewDevise(val) {
+  document.getElementById('devisePreview').textContent = '89.99 ' + val;
+}
+
+// Style onglet actif
+const style = document.createElement('style');
+style.textContent = `
+  .tab-btn.active {
+    background: var(--bs-body-color) !important;
+    color: var(--bs-body-bg) !important;
+  }
+  .tab-btn.active i { color: var(--bs-body-bg) !important; }
+  .tab-btn:hover:not(.active) { background: var(--hover-row); }
+`;
+document.head.appendChild(style);
+
+// Ouvrir l'onglet depuis l'URL #hash
+const hash = window.location.hash.replace('#','');
+if (hash && document.getElementById('tab-' + hash)) showTab(hash);
+</script>
+{% endblock %}

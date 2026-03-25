@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="StockApp — Gestion de stock intelligente">
+  <meta name="robots" content="noindex, nofollow">
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
+  <meta http-equiv="X-Frame-Options" content="DENY">
+  <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
+  <title>{% block title %}StockApp{% endblock %}</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+
+  <style>
+    /* ── Thème clair ─────────────────────────────────────── */
+    :root,[data-theme="light"]{
+      --bs-body-font-family:'IBM Plex Sans',sans-serif;
+      --bs-body-bg:#F5F4F0;--bs-body-color:#1A1A18;
+      --bs-border-color:#DDDBD4;--bs-card-border-color:#DDDBD4;--bs-card-bg:#fff;
+      --mono:'IBM Plex Mono',monospace;--muted:#7A7870;
+      --surface:#fff;--surface-2:#F5F4F0;--hover-row:#FAFAF8;
+      --input-bg:#F5F4F0;--input-focus:#fff;
+      --badge-ok-bg:#EFF8F3;--badge-ok-txt:#1E7E4A;
+      --badge-low-bg:#FFF4E6;--badge-low-txt:#B7651A;
+      --badge-rup-bg:#FEF0EE;--badge-rup-txt:#C0392B;
+      --shadow-sm:0 1px 3px rgba(0,0,0,.06);
+      --shadow-md:0 4px 12px rgba(0,0,0,.08);
+      --shadow-lg:0 8px 28px rgba(0,0,0,.10);
+      --sidebar-w:220px;--sidebar-bg:#1A1A18;
+      --topbar-h:52px;
+    }
+    /* ── Thème sombre ────────────────────────────────────── */
+    [data-theme="dark"]{
+      --bs-body-bg:#141413;--bs-body-color:#E8E6E0;
+      --bs-border-color:#2E2D2A;--bs-card-border-color:#2E2D2A;--bs-card-bg:#1E1D1B;
+      --muted:#888780;--surface:#1E1D1B;--surface-2:#252422;
+      --hover-row:#252422;--input-bg:#141413;--input-focus:#1E1D1B;
+      --badge-ok-bg:#0D2E1A;--badge-ok-txt:#5DCAA5;
+      --badge-low-bg:#2E1F0A;--badge-low-txt:#EF9F27;
+      --badge-rup-bg:#2E0D0D;--badge-rup-txt:#F09595;
+      --shadow-sm:0 1px 3px rgba(0,0,0,.25);
+      --shadow-md:0 4px 12px rgba(0,0,0,.35);
+      --shadow-lg:0 8px 28px rgba(0,0,0,.45);
+      --sidebar-bg:#111110;
+      --bs-secondary-color:#888780;
+      --bs-success-bg-subtle:#0D2E1A;
+      --bs-danger-bg-subtle:#2E0D0D;
+      color-scheme:dark;
+    }
+
+    /* ── Reset ───────────────────────────────────────────── */
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'IBM Plex Sans',sans-serif;background:var(--bs-body-bg);
+         color:var(--bs-body-color);-webkit-font-smoothing:antialiased;
+         display:flex;min-height:100vh;overflow-x:hidden}
+    :focus-visible{outline:2px solid #378ADD;outline-offset:2px;border-radius:3px}
+    ::-webkit-scrollbar{width:5px;height:5px}
+    ::-webkit-scrollbar-track{background:transparent}
+    ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:3px}
+
+    /* ══════════════════════════════════════════════════════
+       SIDEBAR GAUCHE
+    ══════════════════════════════════════════════════════ */
+    #sidebar{
+      width:var(--sidebar-w);
+      height:100vh;
+      background:var(--sidebar-bg);
+      display:flex;flex-direction:column;
+      position:fixed;top:0;left:0;
+      z-index:200;
+      transition:transform .25s ease;
+      overflow:hidden;
+    }
+    /* Logo */
+    .sb-brand{
+      padding:18px 20px 14px;
+      font-family:var(--mono);font-size:14px;letter-spacing:.04em;
+      color:#fff;text-decoration:none;display:flex;align-items:center;gap:8px;
+      border-bottom:1px solid rgba(255,255,255,.07);
+    }
+    .sb-brand span{opacity:.4}
+    .sb-brand:hover{color:#fff}
+
+    /* Section label */
+    .sb-section{
+      font-family:var(--mono);font-size:10px;text-transform:uppercase;
+      letter-spacing:.1em;color:rgba(255,255,255,.3);
+      padding:16px 20px 6px;
+    }
+
+    /* Lien nav */
+    .sb-link{
+      display:flex;align-items:center;gap:10px;
+      padding:9px 20px;font-size:13px;
+      color:rgba(255,255,255,.55);text-decoration:none;
+      border-left:2px solid transparent;
+      transition:color .15s,background .15s,border-color .15s;
+      white-space:nowrap;
+    }
+    .sb-link i{font-size:15px;width:18px;flex-shrink:0}
+    .sb-link:hover{color:rgba(255,255,255,.9);background:rgba(255,255,255,.05)}
+    .sb-link.active{color:#fff;border-left-color:#fff;background:rgba(255,255,255,.07)}
+
+    /* Séparateur */
+    .sb-divider{height:1px;background:rgba(255,255,255,.07);margin:8px 0}
+
+    /* Footer sidebar (user + actions) */
+    .sb-footer{
+      margin-top:auto;
+      border-top:1px solid rgba(255,255,255,.07);
+      padding:12px 16px;
+    }
+    .sb-user{
+      display:flex;align-items:center;gap:10px;
+      padding:6px 4px;margin-bottom:6px;
+    }
+    .sb-avatar{
+      width:30px;height:30px;border-radius:50%;
+      background:rgba(255,255,255,.12);
+      display:flex;align-items:center;justify-content:center;
+      font-size:13px;font-weight:600;color:#fff;flex-shrink:0;
+    }
+    .sb-username{font-size:13px;color:rgba(255,255,255,.8);
+                 white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .sb-role{font-size:10px;font-family:var(--mono);color:rgba(255,255,255,.35)}
+
+    .sb-actions{display:flex;gap:6px;flex-wrap:wrap}
+    .sb-action-btn{
+      flex:1;display:flex;align-items:center;justify-content:center;gap:5px;
+      padding:6px 8px;border-radius:6px;font-size:11px;
+      border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.6);
+      background:none;cursor:pointer;text-decoration:none;
+      transition:all .15s;font-family:inherit;white-space:nowrap;
+    }
+    .sb-action-btn:hover{border-color:rgba(255,255,255,.5);color:#fff;background:rgba(255,255,255,.05)}
+
+    /* Badge plan */
+    .sb-plan-badge{
+      font-size:9px;font-family:var(--mono);padding:1px 5px;border-radius:4px;
+      background:rgba(255,255,255,.12);color:rgba(255,255,255,.5);
+      margin-left:auto;flex-shrink:0;
+    }
+    .sb-plan-badge.pro{background:#EF9F27;color:#fff}
+
+    /* ══════════════════════════════════════════════════════
+       TOPBAR (mobile + notifications + thème)
+    ══════════════════════════════════════════════════════ */
+    #topbar{
+      position:fixed;top:0;left:var(--sidebar-w);right:0;
+      height:var(--topbar-h);
+      background:var(--surface);
+      border-bottom:1px solid var(--bs-border-color);
+      display:flex;align-items:center;justify-content:space-between;
+      padding:0 20px;z-index:100;
+      transition:left .25s;
+    }
+    .topbar-left{display:flex;align-items:center;gap:12px}
+    .topbar-right{display:flex;align-items:center;gap:8px}
+
+    /* Bouton hamburger (mobile) */
+    #sidebar-toggle{
+      display:none;background:none;border:1px solid var(--bs-border-color);
+      border-radius:6px;width:32px;height:32px;cursor:pointer;
+      align-items:center;justify-content:center;color:var(--bs-body-color);
+    }
+    .page-title-bar{
+      font-family:var(--mono);font-size:12px;letter-spacing:.05em;
+      color:var(--muted);text-transform:uppercase;
+    }
+
+    /* Bouton thème */
+    #theme-toggle{
+      width:32px;height:32px;border-radius:6px;
+      border:1px solid var(--bs-border-color);background:none;
+      color:var(--bs-body-color);cursor:pointer;font-size:14px;
+      display:flex;align-items:center;justify-content:center;
+      transition:all .15s;
+    }
+    #theme-toggle:hover{background:var(--hover-row)}
+
+    /* Cloche notifications */
+    #notif-bell{
+      width:32px;height:32px;border-radius:6px;
+      border:1px solid var(--bs-border-color);background:none;
+      color:var(--bs-body-color);cursor:pointer;font-size:14px;
+      display:flex;align-items:center;justify-content:center;
+      position:relative;transition:all .15s;
+    }
+    #notif-bell:hover{background:var(--hover-row)}
+    #notif-badge{
+      position:absolute;top:-4px;right:-4px;
+      background:#E24B4A;color:#fff;font-size:9px;font-weight:700;
+      border-radius:10px;min-width:15px;height:15px;
+      display:flex;align-items:center;justify-content:center;
+      padding:0 3px;font-family:var(--mono);
+    }
+
+    /* ══════════════════════════════════════════════════════
+       CONTENU PRINCIPAL
+    ══════════════════════════════════════════════════════ */
+    #main-wrapper{
+      margin-left:var(--sidebar-w);
+      margin-top:var(--topbar-h);
+      flex:1;min-width:0;
+      transition:margin-left .25s;
+    }
+    #main-content{padding:24px 28px;min-height:calc(100vh - var(--topbar-h))}
+
+    /* ══════════════════════════════════════════════════════
+       MOBILE — sidebar en overlay
+    ══════════════════════════════════════════════════════ */
+    @media(max-width:767px){
+      #sidebar{transform:translateX(-100%)}
+      #sidebar.open{transform:translateX(0)}
+      #topbar{left:0}
+      #main-wrapper{margin-left:0}
+      #sidebar-toggle{display:flex}
+      #sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:199}
+      #sidebar-overlay.show{display:block}
+    }
+
+    /* ══════════════════════════════════════════════════════
+       COMPOSANTS (cards, tables, badges, forms, buttons)
+    ══════════════════════════════════════════════════════ */
+    .card{border-radius:12px;border:1px solid var(--bs-border-color);
+          background:var(--surface);box-shadow:var(--shadow-sm)}
+    .card-header-label{font-family:var(--mono);font-size:11px;text-transform:uppercase;
+                       letter-spacing:.07em;color:var(--muted)}
+    .kpi-card{border-radius:12px;border:1px solid var(--bs-border-color);
+              background:var(--surface);padding:1rem 1.25rem;position:relative;
+              overflow:hidden;box-shadow:var(--shadow-sm);transition:box-shadow .2s,transform .2s}
+    .kpi-card:hover{box-shadow:var(--shadow-md);transform:translateY(-1px)}
+    .kpi-accent{position:absolute;top:0;left:0;width:3px;height:100%}
+    .kpi-label{font-family:var(--mono);font-size:11px;text-transform:uppercase;
+               letter-spacing:.07em;color:var(--muted);margin-bottom:6px}
+    .kpi-value{font-size:26px;font-weight:600;line-height:1;margin-bottom:3px}
+    .kpi-sub{font-size:12px;color:var(--muted)}
+
+    .table{font-size:14px;--bs-table-bg:transparent;--bs-table-color:var(--bs-body-color)}
+    .table th{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.07em;
+              color:var(--muted);font-weight:500;background:var(--bs-body-bg);
+              border-bottom:1px solid var(--bs-border-color);padding:10px 14px;white-space:nowrap}
+    .table td{padding:11px 14px;vertical-align:middle;
+              border-bottom:1px solid var(--bs-border-color);color:var(--bs-body-color)}
+    .table>tbody>tr:last-child>td{border-bottom:none}
+    .table-hover>tbody>tr{transition:background .12s}
+    .table-hover>tbody>tr:hover>td{background:var(--hover-row)}
+    .table-mono{font-family:var(--mono);font-size:12px}
+
+    .badge-ok,.badge-low,.badge-rupture{font-family:var(--mono);font-size:11px;
+                                        padding:3px 8px;border-radius:6px;
+                                        display:inline-block;font-weight:500}
+    .badge-ok{background:var(--badge-ok-bg);color:var(--badge-ok-txt)}
+    .badge-low{background:var(--badge-low-bg);color:var(--badge-low-txt)}
+    .badge-rupture{background:var(--badge-rup-bg);color:var(--badge-rup-txt)}
+
+    .btn{border-radius:7px;font-size:14px;transition:all .15s}
+    .btn-sm{font-size:12px;padding:4px 10px}
+    .btn-brand{background:var(--bs-body-color);color:var(--bs-body-bg);border-color:var(--bs-body-color)}
+    .btn-brand:hover{opacity:.85;color:var(--bs-body-bg);transform:translateY(-1px)}
+
+    .form-control,.form-select{font-size:14px;border-color:var(--bs-border-color);
+                               background:var(--input-bg);border-radius:7px;
+                               color:var(--bs-body-color);transition:all .15s}
+    .form-control:focus,.form-select:focus{border-color:var(--bs-body-color);
+                                           background:var(--input-focus);
+                                           box-shadow:0 0 0 3px rgba(26,26,24,.1);
+                                           color:var(--bs-body-color)}
+    [data-theme="dark"] .form-control:focus,
+    [data-theme="dark"] .form-select:focus{box-shadow:0 0 0 3px rgba(232,230,224,.1)}
+    .form-label{font-size:12px;color:var(--muted);text-transform:uppercase;
+                letter-spacing:.05em;margin-bottom:4px}
+    .form-text{color:var(--muted);font-size:12px}
+
+    .alert{font-size:14px;border-radius:10px;border-left-width:3px;
+           border-top:none;border-right:none;border-bottom:none}
+    [data-theme="dark"] .alert-success{background:var(--bs-success-bg-subtle);color:#5DCAA5;border-color:#1D9E75}
+    [data-theme="dark"] .alert-danger{background:var(--bs-danger-bg-subtle);color:#F09595;border-color:#C0392B}
+    [data-theme="dark"] .btn-close{filter:invert(1) opacity(.7)}
+    .alert-autodismiss{animation:fadeOut .4s ease 4s forwards}
+    @keyframes fadeOut{from{opacity:1;max-height:100px}to{opacity:0;max-height:0;padding:0;margin:0;overflow:hidden}}
+
+    .page-label{font-family:var(--mono);font-size:11px;text-transform:uppercase;
+                letter-spacing:.08em;color:var(--muted);margin-bottom:1.25rem;
+                display:flex;align-items:center;gap:8px}
+
+    [data-theme="dark"] .text-muted{color:var(--muted)!important}
+    [data-theme="dark"] .bg-light{background:var(--hover-row)!important}
+    [data-theme="dark"] .border-bottom{border-color:var(--bs-border-color)!important}
+
+    /* Bannière upgrade */
+    .upgrade-banner{font-size:13px;padding:8px 20px;
+                    display:flex;align-items:center;gap:10px;
+                    border-bottom:1px solid var(--bs-border-color)}
+    .upgrade-banner a{background:#1A1A18;color:#fff;padding:3px 12px;border-radius:6px;
+                      text-decoration:none;font-size:12px;font-weight:500;
+                      white-space:nowrap;transition:opacity .15s}
+    .upgrade-banner a:hover{opacity:.85}
+
+    /* Flash container */
+    .flash-container{padding:12px 28px 0}
+  </style>
+
+  {% block head %}{% endblock %}
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+
+<body>
+<a href="#main-content" style="position:absolute;top:-40px;left:8px;background:#1A1A18;
+   color:#fff;padding:8px 16px;border-radius:0 0 8px 8px;font-size:13px;
+   text-decoration:none;z-index:9999;transition:top .2s"
+   onfocus="this.style.top='0'" onblur="this.style.top='-40px'">
+  Aller au contenu principal
+</a>
+
+<!-- Overlay mobile -->
+<div id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+<!-- ═══════ SIDEBAR ═══════════════════════════════════════════════ -->
+<nav id="sidebar" role="navigation" aria-label="Navigation principale">
+
+  <a class="sb-brand" href="{{ url_for('index') }}">
+    <span aria-hidden="true">📦</span>
+    <span><span>stock</span>app</span>
+  </a>
+
+  {% if current_user.is_authenticated %}
+
+  <div style="overflow-y:auto;flex:1;min-height:0">
+    <div class="sb-section">Menu</div>
+
+    <a class="sb-link {% if request.endpoint == 'index' %}active{% endif %}"
+       href="{{ url_for('index') }}"
+       {% if request.endpoint == 'index' %}aria-current="page"{% endif %}>
+      <i class="bi bi-box-seam" aria-hidden="true"></i>Produits
+    </a>
+    <a class="sb-link {% if request.endpoint == 'dashboard' %}active{% endif %}"
+       href="{{ url_for('dashboard') }}"
+       {% if request.endpoint == 'dashboard' %}aria-current="page"{% endif %}>
+      <i class="bi bi-grid" aria-hidden="true"></i>Dashboard
+    </a>
+    <a class="sb-link {% if request.endpoint == 'graphiques' %}active{% endif %}"
+       href="{{ url_for('graphiques') }}"
+       {% if request.endpoint == 'graphiques' %}aria-current="page"{% endif %}>
+      <i class="bi bi-bar-chart-line" aria-hidden="true"></i>Graphiques
+    </a>
+    <a class="sb-link {% if request.endpoint == 'scanner' %}active{% endif %}"
+       href="{{ url_for('scanner') }}"
+       {% if request.endpoint == 'scanner' %}aria-current="page"{% endif %}>
+      <i class="bi bi-upc-scan" aria-hidden="true"></i>Scanner
+    </a>
+
+    <div class="sb-divider"></div>
+    <div class="sb-section">Catalogue</div>
+
+    <a class="sb-link {% if request.endpoint == 'categories' %}active{% endif %}"
+       href="{{ url_for('categories') }}"
+       {% if request.endpoint == 'categories' %}aria-current="page"{% endif %}>
+      <i class="bi bi-tags" aria-hidden="true"></i>Catégories
+    </a>
+    <a class="sb-link {% if request.endpoint in ['fournisseurs','edit_fournisseur'] %}active{% endif %}"
+       href="{{ url_for('fournisseurs') }}"
+       {% if request.endpoint in ['fournisseurs','edit_fournisseur'] %}aria-current="page"{% endif %}>
+      <i class="bi bi-building" aria-hidden="true"></i>Fournisseurs
+    </a>
+
+    {% if est_manager %}
+    <div class="sb-divider"></div>
+    <div class="sb-section">Exports</div>
+    <a class="sb-link" href="{{ url_for('export_csv_produits') }}">
+      <i class="bi bi-filetype-csv" aria-hidden="true"></i>CSV Produits
+    </a>
+    <a class="sb-link" href="{{ url_for('export_csv_mouvements') }}">
+      <i class="bi bi-filetype-csv" aria-hidden="true"></i>CSV Mouvements
+    </a>
+    {% if est_pro %}
+    <a class="sb-link" href="{{ url_for('export_pdf_stock') }}">
+      <i class="bi bi-filetype-pdf" aria-hidden="true"></i>PDF Rapport
+    </a>
+    {% else %}
+    <a class="sb-link" href="{{ url_for('parametres_email') }}#abonnement"
+       style="opacity:.5">
+      <i class="bi bi-lock" aria-hidden="true"></i>PDF
+      <span class="sb-plan-badge">PRO</span>
+    </a>
+    {% endif %}
+    {% endif %}
+
+    {% if est_admin %}
+    <div class="sb-divider"></div>
+    <div class="sb-section">Administration</div>
+    <a class="sb-link {% if request.endpoint == 'utilisateurs' %}active{% endif %}"
+       href="{{ url_for('utilisateurs') }}"
+       {% if request.endpoint == 'utilisateurs' %}aria-current="page"{% endif %}>
+      <i class="bi bi-people" aria-hidden="true"></i>Équipe
+    </a>
+    <a class="sb-link {% if request.endpoint in ['parametres_email','abonnement'] %}active{% endif %}"
+       href="{{ url_for('parametres_email') }}">
+      <i class="bi bi-gear" aria-hidden="true"></i>Paramètres
+    </a>
+    <a class="sb-link {% if request.endpoint == 'abonnement' %}active{% endif %}"
+       href="{{ url_for('abonnement') }}"
+       {% if request.endpoint == 'abonnement' %}aria-current="page"{% endif %}>
+      <i class="bi bi-credit-card" aria-hidden="true"></i>Abonnement
+      {% if not est_pro %}
+      <span class="sb-plan-badge">FREE</span>
+      {% else %}
+      <span class="sb-plan-badge pro">PRO</span>
+      {% endif %}
+    </a>
+    {% else %}
+    <div class="sb-divider"></div>
+    <a class="sb-link {% if request.endpoint == 'parametres_email' %}active{% endif %}"
+       href="{{ url_for('parametres_email') }}">
+      <i class="bi bi-gear" aria-hidden="true"></i>Paramètres
+    </a>
+    {% endif %}
+  </div>
+
+  <!-- Footer sidebar -->
+  <div class="sb-footer">
+    <div class="sb-user">
+      <div class="sb-avatar">{{ current_user.username[0] | upper }}</div>
+      <div style="min-width:0">
+        <div class="sb-username">{{ current_user.username }}</div>
+        <div class="sb-role">{{ current_user.role }}</div>
+      </div>
+    </div>
+    <div class="sb-actions">
+      <button id="theme-toggle" class="sb-action-btn" aria-label="Basculer le thème">
+        🌙
+      </button>
+      <a href="{{ url_for('parametres_email') }}" class="sb-action-btn"
+         aria-label="Paramètres">
+        <i class="bi bi-sliders" aria-hidden="true"></i>
+      </a>
+    </div>
+    <a href="{{ url_for('logout') }}"
+       style="display:flex;align-items:center;gap:8px;margin-top:8px;
+              padding:8px 10px;border-radius:8px;font-size:13px;
+              color:rgba(255,255,255,.5);text-decoration:none;
+              border:1px solid rgba(255,255,255,.1);transition:all .15s;
+              justify-content:center"
+       onmouseover="this.style.background='rgba(255,255,255,.08)';this.style.color='#fff'"
+       onmouseout="this.style.background='none';this.style.color='rgba(255,255,255,.5)'">
+      <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+      Déconnexion
+    </a>
+  </div>
+
+  {% endif %}
+</nav>
+
+<!-- ═══════ TOPBAR ════════════════════════════════════════════════ -->
+<div id="topbar">
+  <div class="topbar-left">
+    <button id="sidebar-toggle" onclick="toggleSidebar()"
+            aria-label="Ouvrir/fermer le menu">
+      <i class="bi bi-list" style="font-size:18px"></i>
+    </button>
+    <span class="page-title-bar d-none d-sm-block">
+      {% block page_title %}StockApp{% endblock %}
+    </span>
+  </div>
+  <div class="topbar-right">
+    {% if current_user.is_authenticated %}
+    <!-- Cloche notifications -->
+    <button id="notif-bell" onclick="toggleNotifPanel()"
+            aria-label="Notifications{% if nb_notifs > 0 %} — {{ nb_notifs }} non lues{% endif %}"
+            aria-haspopup="true" aria-expanded="false">
+      <i class="bi bi-bell" aria-hidden="true"></i>
+      {% if nb_notifs > 0 %}
+      <span id="notif-badge" aria-live="polite">
+        {{ nb_notifs if nb_notifs < 100 else '99+' }}
+      </span>
+      {% endif %}
+    </button>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ═══════ CONTENU ═══════════════════════════════════════════════ -->
+<div id="main-wrapper">
+
+  <!-- Bannière upgrade -->
+  {% if current_user.is_authenticated and not est_pro %}
+    {% set nb_produits = entreprise.produits|length if entreprise else 0 %}
+    {% set limite_prod = limites.produits if limites else 50 %}
+    {% if nb_produits >= limite_prod * 0.8 %}
+    <div class="upgrade-banner" role="alert"
+         style="background:{% if nb_produits >= limite_prod %}#FEF0EE{% else %}#FFF4E6{% endif %}">
+      <i class="bi bi-{% if nb_produits >= limite_prod %}exclamation-circle{% else %}exclamation-triangle{% endif %}"
+         style="color:{% if nb_produits >= limite_prod %}#C0392B{% else %}#B7651A{% endif %}"></i>
+      {% if nb_produits >= limite_prod %}
+        <strong>Limite atteinte</strong> — {{ nb_produits }}/{{ limite_prod }} produits.
+      {% else %}
+        <strong>{{ nb_produits }}/{{ limite_prod }} produits</strong> utilisés.
+      {% endif %}
+      {% if est_admin %}<a href="{{ url_for('abonnement') }}">Passer au Pro →</a>{% endif %}
+    </div>
+    {% endif %}
+  {% endif %}
+
+  <!-- Flash messages -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div class="flash-container" role="status" aria-live="polite">
+      {% for category, message in messages %}
+        <div class="alert alert-{{ 'success' if category == 'success' else 'danger' }} alert-dismissible fade show mb-2 alert-autodismiss"
+             role="alert">
+          <i class="bi bi-{{ 'check-circle' if category == 'success' else 'exclamation-circle' }} me-2" aria-hidden="true"></i>
+          {{ message }}
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
+        </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  {% endwith %}
+
+  <main id="main-content" tabindex="-1">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+
+<!-- ═══════ BOOTSTRAP ════════════════════════════════════════════ -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
+<script>window.DEVISE = "{{ devise }}";</script>
+
+<!-- ═══════ SIDEBAR TOGGLE ═══════════════════════════════════════ -->
+<script>
+function toggleSidebar(){
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebar-overlay').classList.toggle('show');
+}
+function closeSidebar(){
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('show');
+}
+</script>
+
+<!-- ═══════ NOTIFICATIONS ════════════════════════════════════════ -->
+<div id="notif-overlay" onclick="closeNotifPanel()"
+     style="display:none;position:fixed;inset:0;z-index:1030;background:rgba(0,0,0,.2)"
+     aria-hidden="true"></div>
+
+<div id="notif-panel" role="dialog" aria-label="Notifications" aria-modal="true"
+     style="display:none;position:fixed;top:calc(var(--topbar-h) + 6px);right:12px;
+            width:340px;max-height:520px;background:var(--bs-card-bg);
+            border:0.5px solid var(--bs-border-color);border-radius:14px;
+            z-index:1040;box-shadow:var(--shadow-lg);overflow:hidden;flex-direction:column">
+  <div style="padding:.9rem 1.1rem .7rem;border-bottom:0.5px solid var(--bs-border-color);
+              display:flex;align-items:center;justify-content:space-between">
+    <div style="font-size:14px;font-weight:500">
+      Notifications
+      <span id="notif-count-header" style="font-size:11px;color:var(--muted);
+            font-family:var(--mono);margin-left:4px" aria-live="polite"></span>
+    </div>
+    <button onclick="lireTout()"
+            style="font-size:12px;background:none;border:none;cursor:pointer;
+                   color:#185FA5;font-family:inherit;padding:0">Tout marquer lu</button>
+  </div>
+  <div id="notif-list" style="overflow-y:auto;max-height:400px;flex:1" role="list"></div>
+  <div style="padding:.65rem 1.1rem;border-top:0.5px solid var(--bs-border-color);text-align:center">
+    <button onclick="viderLues()"
+            style="font-size:12px;background:none;border:none;cursor:pointer;
+                   color:var(--muted);font-family:inherit">
+      Supprimer les notifications lues
+    </button>
+  </div>
+</div>
+
+<style>
+.notif-item{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;
+            border-bottom:0.5px solid var(--bs-border-color);transition:background .15s}
+.notif-item:hover{background:var(--hover-row)}
+.notif-item.non-lue{background:rgba(55,138,221,.05)}
+.notif-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px}
+.notif-icon{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;
+            justify-content:center;font-size:14px;flex-shrink:0}
+.notif-titre{font-size:13px;font-weight:500;line-height:1.3;margin-bottom:2px}
+.notif-msg{font-size:12px;color:var(--muted);line-height:1.4}
+.notif-time{font-size:10px;color:var(--muted);font-family:var(--mono);margin-top:3px}
+.notif-del{background:none;border:none;cursor:pointer;color:var(--muted);
+           font-size:14px;padding:2px;flex-shrink:0;opacity:0;transition:opacity .15s}
+.notif-item:hover .notif-del{opacity:1}
+</style>
+
+<script>
+const NOTIF_ICONS={rupture:{bg:'#FEF0EE',color:'#C0392B',icon:'⚠️'},
+  stock_bas:{bg:'#FFF4E6',color:'#B7651A',icon:'📉'},
+  info:{bg:'#E6F1FB',color:'#185FA5',icon:'ℹ️'},
+  succes:{bg:'#EFF8F3',color:'#1E7E4A',icon:'✅'},
+  alerte:{bg:'#FAEEDA',color:'#BA7517',icon:'🔔'}};
+let notifOpen=false;
+function toggleNotifPanel(){notifOpen?closeNotifPanel():openNotifPanel()}
+function openNotifPanel(){
+  const p=document.getElementById('notif-panel'),o=document.getElementById('notif-overlay');
+  p.style.display='flex';o.style.display='block';notifOpen=true;
+  document.getElementById('notif-bell').setAttribute('aria-expanded','true');
+  chargerNotifications();
+}
+function closeNotifPanel(){
+  document.getElementById('notif-panel').style.display='none';
+  document.getElementById('notif-overlay').style.display='none';
+  notifOpen=false;
+  document.getElementById('notif-bell').setAttribute('aria-expanded','false');
+}
+function chargerNotifications(){
+  fetch('/notifications').then(r=>r.json()).then(data=>{
+    const list=document.getElementById('notif-list');
+    const hdr=document.getElementById('notif-count-header');
+    hdr.textContent=data.non_lues>0?`${data.non_lues} non lue(s)`:'';
+    if(!data.notifications.length){
+      list.innerHTML='<div style="padding:2rem;text-align:center;color:var(--muted);font-size:13px"><div style="font-size:28px;margin-bottom:8px">🔔</div>Aucune notification</div>';return;
+    }
+    list.innerHTML=data.notifications.map(n=>{
+      const s=NOTIF_ICONS[n.type]||NOTIF_ICONS.info;
+      return `<div class="notif-item ${n.lue?'':'non-lue'}" id="notif-${n.id}" role="listitem">
+        <div class="notif-dot" style="background:${n.lue?'transparent':s.color}"></div>
+        <div class="notif-icon" style="background:${s.bg}">${s.icon}</div>
+        <div style="flex:1;min-width:0">
+          <div class="notif-titre">${n.titre}</div>
+          <div class="notif-msg">${n.message}</div>
+          <div class="notif-time">${n.cree_le}${n.lien?` · <a href="${n.lien}" style="color:#185FA5;text-decoration:none" onclick="lire(${n.id})">Voir →</a>`:''}</div>
+        </div>
+        <button class="notif-del" onclick="supprimer(${n.id})" aria-label="Supprimer">×</button>
+      </div>`;
+    }).join('');
+  }).catch(()=>{});
+}
+function csrfToken(){return document.querySelector('meta[name="csrf-token"]')?.content||''}
+function lire(id){fetch(`/notifications/lire/${id}`,{method:'POST',headers:{'X-CSRFToken':csrfToken()}}).then(()=>{const el=document.getElementById('notif-'+id);if(el){el.classList.remove('non-lue');el.querySelector('.notif-dot').style.background='transparent';}majBadge(-1);})}
+function lireTout(){fetch('/notifications/lire-tout',{method:'POST',headers:{'X-CSRFToken':csrfToken()}}).then(()=>{chargerNotifications();majBadge(0,true);})}
+function supprimer(id){fetch(`/notifications/supprimer/${id}`,{method:'POST',headers:{'X-CSRFToken':csrfToken()}}).then(()=>{const el=document.getElementById('notif-'+id);if(el){const nlue=el.classList.contains('non-lue');el.remove();if(nlue)majBadge(-1);}})}
+function viderLues(){document.querySelectorAll('.notif-item:not(.non-lue)').forEach(el=>{supprimer(parseInt(el.id.replace('notif-','')));})}
+function majBadge(delta,reset=false){
+  const b=document.getElementById('notif-badge');if(!b)return;
+  if(reset){b.style.display='none';return;}
+  const n=Math.max(0,(parseInt(b.textContent)||0)+delta);
+  b.textContent=n>99?'99+':n;b.style.display=n===0?'none':'flex';
+  const h=document.getElementById('notif-count-header');
+  if(h)h.textContent=n>0?`${n} non lue(s)`:'';
+}
+setInterval(()=>{fetch('/notifications').then(r=>r.json()).then(data=>{const b=document.getElementById('notif-badge');if(!b)return;const n=data.non_lues;b.textContent=n>99?'99+':n;b.style.display=n===0?'none':'flex';}).catch(()=>{});},30000);
+</script>
+
+<!-- ═══════ ONBOARDING ════════════════════════════════════════════ -->
+{% if show_onboarding %}
+<div id="ob-backdrop" aria-hidden="true"
+     style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1040;animation:fadeIn .25s ease"></div>
+<div id="ob-panel" role="dialog" aria-label="Guide de démarrage" aria-modal="true"
+     style="position:fixed;bottom:1.5rem;right:1.5rem;width:320px;
+            background:var(--bs-card-bg);border:0.5px solid var(--bs-border-color);
+            border-radius:16px;z-index:1050;box-shadow:var(--shadow-lg);animation:slideUp .3s ease">
+  <div style="padding:1.1rem 1.25rem .75rem;border-bottom:0.5px solid var(--bs-border-color)">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-size:13px;font-weight:500">Bienvenue dans StockApp 👋</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">Complétez ces étapes pour bien démarrer</div>
+      </div>
+      <button onclick="skipOnboarding()" aria-label="Fermer"
+              style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:18px;line-height:1">×</button>
+    </div>
+    <div style="height:4px;background:var(--bs-border-color);border-radius:2px;margin-top:10px;overflow:hidden">
+      <div id="ob-progress" style="height:100%;background:#1D9E75;border-radius:2px;width:0%;transition:width .4s ease"></div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:4px;font-family:var(--mono)">
+      <span id="ob-count">0</span>/4 étapes
+    </div>
+  </div>
+  <div style="padding:.75rem 1.25rem">
+    {% set etapes=[('produit','📦','Ajouter votre premier produit',url_for('index'),'Ouvrir la liste'),
+                   ('categorie','🏷️','Créer une catégorie',url_for('categories'),'Gérer les catégories'),
+                   ('mouvement','↕️','Enregistrer un mouvement',url_for('index'),'Aller aux produits'),
+                   ('fournisseur','🏢','Ajouter un fournisseur',url_for('fournisseurs'),'Gérer les fournisseurs')] %}
+    {% for key,icon,label,lien,action in etapes %}
+    <div class="ob-step" data-key="{{ key }}"
+         style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--bs-border-color)">
+      <div class="ob-icon" aria-hidden="true"
+           style="width:28px;height:28px;border-radius:50%;border:1.5px solid var(--bs-border-color);
+                  display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;transition:all .2s">{{ icon }}</div>
+      <div style="flex:1;min-width:0"><div class="ob-label" style="font-size:13px">{{ label }}</div></div>
+      <a href="{{ lien }}" class="ob-action" style="font-size:11px;color:#185FA5;text-decoration:none;white-space:nowrap;font-family:var(--mono)">{{ action }} →</a>
+    </div>
+    {% endfor %}
+  </div>
+  <div style="padding:.75rem 1.25rem;display:flex;gap:8px">
+    <button onclick="skipOnboarding()" style="flex:1;padding:8px;border:0.5px solid var(--bs-border-color);border-radius:8px;background:none;color:var(--muted);font-size:13px;cursor:pointer;font-family:inherit">Passer</button>
+    <button onclick="skipOnboarding()" style="flex:1;padding:8px;background:var(--bs-body-color);color:var(--bs-body-bg);border:none;border-radius:8px;font-size:13px;cursor:pointer;font-weight:500;font-family:inherit">Compris !</button>
+  </div>
+</div>
+<style>
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+.ob-step.done .ob-icon{background:#EFF8F3;border-color:#1D9E75;font-size:0}
+.ob-step.done .ob-icon::after{content:"✓";font-size:12px;font-weight:700;color:#1D9E75}
+.ob-step.done .ob-label{text-decoration:line-through;color:var(--muted)}
+.ob-step.done .ob-action{display:none}
+[data-theme="dark"] .ob-step.done .ob-icon{background:#0D2E1A;border-color:#1D9E75}
+</style>
+<script>
+(function(){
+  fetch('/onboarding/statut').then(r=>r.json()).then(data=>{
+    let done=0;
+    document.querySelectorAll('.ob-step').forEach(el=>{if(data[el.dataset.key]){el.classList.add('done');done++;}});
+    document.getElementById('ob-progress').style.width=Math.round(done/4*100)+'%';
+    document.getElementById('ob-count').textContent=done;
+    if(done>=4)setTimeout(skipOnboarding,1200);
+  }).catch(()=>{});
+})();
+function skipOnboarding(){
+  fetch('/onboarding/terminer',{method:'POST',headers:{'X-CSRFToken':csrfToken(),'Content-Type':'application/json'}}).catch(()=>{});
+  ['ob-panel','ob-backdrop'].forEach(id=>{const el=document.getElementById(id);if(el){el.style.opacity='0';el.style.transition='opacity .2s';setTimeout(()=>el.remove(),200);}});
+}
+</script>
+{% endif %}
+
+<!-- ═══════ THÈME ════════════════════════════════════════════════ -->
+<script>
+(function(){
+  const html=document.documentElement;
+  const btn=document.getElementById('theme-toggle');
+  const ICONS={light:'🌙',dark:'☀️'};
+  function applyTheme(t){
+    html.setAttribute('data-theme',t);
+    if(btn)btn.textContent=ICONS[t];
+    btn?.setAttribute('aria-label',t==='dark'?'Passer au mode clair':'Passer au mode sombre');
+    localStorage.setItem('theme',t);
+  }
+  const saved=localStorage.getItem('theme');
+  applyTheme(saved||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'));
+  btn?.addEventListener('click',()=>applyTheme(html.getAttribute('data-theme')==='dark'?'light':'dark'));
+  window.matchMedia('(prefers-color-scheme:dark)').addEventListener('change',e=>{
+    if(!localStorage.getItem('theme'))applyTheme(e.matches?'dark':'light');
+  });
+})();
+</script>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

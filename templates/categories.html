@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Catégories — StockApp{% endblock %}
+
+{% block content %}
+<span class="page-label">Catégories</span>
+
+<div class="row g-4">
+  <!-- Formulaire ajout -->
+  <div class="col-12 col-md-4">
+    <div class="card p-4">
+      <div class="card-header-label mb-3">Nouvelle catégorie</div>
+      <form method="POST" action="{{ url_for('add_categorie') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="mb-3">
+          <label class="form-label">Nom</label>
+          <input type="text" name="nom" class="form-control" placeholder="Ex : Électronique" required autofocus>
+        </div>
+        <button type="submit" class="btn btn-brand w-100">
+          <i class="bi bi-plus-lg me-1"></i>Ajouter
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Liste des catégories -->
+  <div class="col-12 col-md-8">
+    <div class="card">
+      <div class="card-header bg-transparent border-bottom py-3 px-4">
+        <span class="card-header-label mb-0">Catégories ({{ categories|length }})</span>
+      </div>
+      {% if categories %}
+        {% for cat in categories %}
+        <div class="d-flex align-items-center justify-content-between px-4 py-3 border-bottom">
+          <div class="d-flex align-items-center gap-3">
+            <div style="width:36px;height:36px;border-radius:8px;background:var(--bs-body-bg);
+                        display:flex;align-items:center;justify-content:center;font-size:16px">🏷️</div>
+            <div>
+              <div class="fw-500">{{ cat['nom'] }}</div>
+              <div class="text-muted" style="font-size:12px">{{ cat['nb_produits'] }} produit{{ 's' if cat['nb_produits'] != 1 }}</div>
+            </div>
+          </div>
+          <div class="d-flex gap-2 align-items-center">
+            <!-- Renommer (modal inline) -->
+            <button class="btn btn-sm btn-outline-secondary"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#edit-cat-{{ cat['id'] }}">
+              <i class="bi bi-pencil"></i>
+            </button>
+            <!-- Supprimer -->
+            <form method="POST" action="{{ url_for('delete_categorie', id=cat['id']) }}"
+                  onsubmit="return confirm('Supprimer cette catégorie ? Les produits liés seront détachés.')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+          </div>
+        </div>
+        <!-- Formulaire renommage inline -->
+        <div class="collapse px-4 py-2 bg-light border-bottom" id="edit-cat-{{ cat['id'] }}">
+          <form method="POST" action="{{ url_for('edit_categorie', id=cat['id']) }}"
+                class="d-flex gap-2">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="text" name="nom" class="form-control form-control-sm"
+                   value="{{ cat['nom'] }}" required>
+            <button type="submit" class="btn btn-sm btn-brand">Renommer</button>
+          </form>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="text-center text-muted py-5">
+          <i class="bi bi-tags" style="font-size:2rem;opacity:.3"></i>
+          <p class="mt-2 mb-0">Aucune catégorie — créez-en une.</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

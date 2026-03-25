@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Paramètres — StockApp{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-12 col-md-6 col-lg-5">
+    <a href="{{ url_for('index') }}"
+       class="text-muted text-decoration-none d-inline-flex align-items-center gap-1 mb-3"
+       style="font-size:13px">
+      <i class="bi bi-arrow-left"></i> Retour
+    </a>
+
+    <!-- Email -->
+    <div class="card p-4 mb-3">
+      <h5 class="fw-semibold mb-1">Alertes email</h5>
+      <p class="mb-4" style="font-size:13px;color:var(--muted)">
+        Les alertes sont envoyées automatiquement quand un produit passe sous son seuil.
+      </p>
+      <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="mb-3">
+          <label class="form-label">Adresse email</label>
+          <input type="email" name="email" class="form-control"
+                 value="{{ user.email or '' }}"
+                 placeholder="vous@exemple.com">
+        </div>
+
+        <!-- ── Devise ── -->
+        <div class="mb-4">
+          <label class="form-label">Devise d'affichage</label>
+          <select name="devise" class="form-select" id="deviseSelect" onchange="previewDevise(this.value)">
+            {% set devises = [
+              ('€',   'Euro — EUR'),
+              ('$',   'Dollar américain — USD'),
+              ('£',   'Livre sterling — GBP'),
+              ('CHF', 'Franc suisse — CHF'),
+              ('MAD', 'Dirham marocain — MAD'),
+              ('TND', 'Dinar tunisien — TND'),
+              ('DZD', 'Dinar algérien — DZD'),
+              ('XOF', 'Franc CFA — XOF'),
+              ('CAD', 'Dollar canadien — CAD'),
+              ('AED', 'Dirham EAU — AED'),
+              ('SAR', 'Riyal saoudien — SAR'),
+              ('JPY', 'Yen japonais — JPY'),
+              ('CNY', 'Yuan chinois — CNY'),
+            ] %}
+            {% for symbole, label in devises %}
+              <option value="{{ symbole }}"
+                {% if (user.devise or '€') == symbole %}selected{% endif %}>
+                {{ symbole }} — {{ label }}
+              </option>
+            {% endfor %}
+          </select>
+          <div class="form-text mt-1">
+            Aperçu : <strong id="devisePreview">89.99 {{ user.devise or '€' }}</strong>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-brand w-100">
+          <i class="bi bi-check-lg me-1"></i>Enregistrer
+        </button>
+      </form>
+    </div>
+
+    <!-- Envoi manuel -->
+    <div class="card p-4 mb-3">
+      <h6 class="fw-semibold mb-1">Envoyer le rapport maintenant</h6>
+      <p style="font-size:13px;color:var(--muted)" class="mb-3">
+        Envoie immédiatement un email avec tous les produits en alerte.
+      </p>
+      {% if est_pro %}
+      <form method="POST" action="{{ url_for('envoyer_rapport_alertes') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-outline-warning w-100">
+          <i class="bi bi-send me-1"></i>Envoyer le rapport d'alertes
+        </button>
+      </form>
+      {% else %}
+      <a href="{{ url_for('abonnement') }}"
+         class="btn btn-outline-secondary w-100 d-flex align-items-center justify-content-center gap-2">
+        <i class="bi bi-lock"></i>Alertes email — Plan Pro
+      </a>
+      {% endif %}
+    </div>
+
+    <!-- Info SMTP -->
+    <div class="card p-4">
+      <h6 class="fw-semibold mb-2">
+        <i class="bi bi-info-circle me-1"></i>Configuration SMTP
+      </h6>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:8px">
+        Ces paramètres sont définis dans <code>app.py</code> ou le fichier <code>.env</code> :
+      </p>
+      <pre style="font-size:12px;background:#1A1A18;color:#97C459;padding:14px;border-radius:8px;overflow-x:auto"><code>MAIL_SERVER=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USERNAME=ton@gmail.com
+MAIL_PASSWORD=mot_de_passe_app</code></pre>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function previewDevise(val) {
+  document.getElementById('devisePreview').textContent = '89.99 ' + val;
+}
+</script>
+{% endblock %}

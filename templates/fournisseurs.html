@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Fournisseurs — StockApp{% endblock %}
+
+{% block content %}
+<span class="page-label">Fournisseurs</span>
+
+<!-- Formulaire ajout -->
+<div class="card mb-4 p-4">
+  <div class="card-header-label mb-3">Nouveau fournisseur</div>
+  <form method="POST" action="{{ url_for('add_fournisseur') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="row g-2 align-items-end">
+      <div class="col-12 col-md-3">
+        <label class="form-label">Nom <span class="text-danger">*</span></label>
+        <input type="text" name="nom" class="form-control" placeholder="Nom de l'entreprise" required>
+      </div>
+      <div class="col-12 col-md-3">
+        <label class="form-label">Contact</label>
+        <input type="text" name="contact" class="form-control" placeholder="Prénom Nom">
+      </div>
+      <div class="col-12 col-md-3">
+        <label class="form-label">Email</label>
+        <input type="email" name="email" class="form-control" placeholder="contact@exemple.com">
+      </div>
+      <div class="col-12 col-md-2">
+        <label class="form-label">Téléphone</label>
+        <input type="text" name="telephone" class="form-control" placeholder="06 00 00 00 00">
+      </div>
+      <div class="col-12 col-md-1">
+        <button type="submit" class="btn btn-brand w-100">
+          <i class="bi bi-plus-lg"></i>
+        </button>
+      </div>
+    </div>
+  </form>
+</div>
+
+<!-- Liste des fournisseurs -->
+<div class="card">
+  <div class="card-header bg-transparent border-bottom py-3 px-4">
+    <span class="card-header-label mb-0">Fournisseurs ({{ fournisseurs|length }})</span>
+  </div>
+
+  {% if fournisseurs %}
+  <div class="table-responsive">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Fournisseur</th>
+          <th>Contact</th>
+          <th>Email</th>
+          <th>Téléphone</th>
+          <th>Produits</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in fournisseurs %}
+        <tr>
+          <td class="fw-500">{{ f['nom'] }}</td>
+          <td class="text-muted">{{ f['contact'] or '—' }}</td>
+          <td>
+            {% if f['email'] %}
+              <a href="mailto:{{ f['email'] }}" class="text-decoration-none">{{ f['email'] }}</a>
+            {% else %}—{% endif %}
+          </td>
+          <td class="table-mono text-muted">{{ f['telephone'] or '—' }}</td>
+          <td>
+            <span class="badge bg-light text-dark border" style="font-family:var(--mono);font-size:11px">
+              {{ f['nb_produits'] }} produit{{ 's' if f['nb_produits'] != 1 }}
+            </span>
+          </td>
+          <td>
+            <div class="d-flex gap-1">
+              <a href="{{ url_for('edit_fournisseur', id=f['id']) }}"
+                 class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-pencil"></i>
+              </a>
+              <form method="POST" action="{{ url_for('delete_fournisseur', id=f['id']) }}"
+                    onsubmit="return confirm('Supprimer ce fournisseur ?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn btn-sm btn-outline-danger">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    <div class="text-center text-muted py-5">
+      <i class="bi bi-building" style="font-size:2rem;opacity:.3"></i>
+      <p class="mt-2 mb-0">Aucun fournisseur — ajoutez-en un.</p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

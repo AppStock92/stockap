@@ -1,0 +1,402 @@
+{% extends "base.html" %}
+{% block title %}Scanner — StockApp{% endblock %}
+
+{% block head %}
+<style>
+  .scanner-wrap {
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
+    aspect-ratio: 4/3;
+  }
+  #interactive { width: 100%; height: 100%; }
+  #interactive video { width: 100%; height: 100%; object-fit: cover; }
+  #interactive canvas { display: none; }
+
+  .scan-overlay {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: none;
+  }
+  .scan-frame {
+    width: 60%; aspect-ratio: 3/2;
+    border: 2px solid rgba(255,255,255,.7);
+    border-radius: 8px;
+    box-shadow: 0 0 0 9999px rgba(0,0,0,.4);
+  }
+  .scan-line {
+    position: absolute;
+    width: 58%; height: 2px;
+    background: linear-gradient(90deg, transparent, #22c55e, transparent);
+    animation: scanline 2s ease-in-out infinite;
+  }
+  @keyframes scanline {
+    0%   { top: 22%; }
+    50%  { top: 56%; }
+    100% { top: 22%; }
+  }
+
+  .scan-status {
+    position: absolute; bottom: 12px; left: 0; right: 0;
+    text-align: center; font-size: 13px; color: rgba(255,255,255,.8);
+    font-family: var(--mono, monospace);
+  }
+
+  .result-card {
+    display: none;
+    background: var(--bs-card-bg, #fff);
+    border: 1px solid var(--bs-border-color, #ddd);
+    border-radius: 12px;
+    padding: 1.25rem;
+  }
+  .result-card.show { display: block; }
+
+  .badge-delta-in  { background: #EFF8F3; color: #1E7E4A; font-size: 13px; padding: 4px 10px; border-radius: 6px; }
+  .badge-delta-out { background: #FEF0EE; color: #C0392B; font-size: 13px; padding: 4px 10px; border-radius: 6px; }
+
+  .manual-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .manual-row select,
+  .manual-row input  { flex: 1; min-width: 120px; }
+
+  #beep-canvas { display: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<span class="page-label">Scanner code-barres</span>
+
+<div class="row g-4">
+
+  <!-- Colonne gauche : caméra -->
+  <div class="col-12 col-lg-6">
+    <div class="card p-3 mb-3">
+      <div class="card-header-label mb-3">Caméra</div>
+
+      <!-- Scanner -->
+      <div class="scanner-wrap mb-3" id="scannerBox">
+        <div id="interactive" class="viewport"></div>
+        <div class="scan-overlay">
+          <div class="scan-frame"></div>
+          <div class="scan-line" id="scanLine"></div>
+        </div>
+        <div class="scan-status" id="scanStatus">Appuie sur Démarrer</div>
+      </div>
+
+      <div class="d-flex gap-2">
+        <button class="btn btn-brand flex-grow-1" id="btnStart" onclick="startScanner()">
+          <i class="bi bi-camera me-1"></i>Démarrer
+        </button>
+        <button class="btn btn-outline-secondary flex-grow-1 d-none" id="btnStop" onclick="stopScanner()">
+          <i class="bi bi-stop-circle me-1"></i>Arrêter
+        </button>
+      </div>
+    </div>
+
+    <!-- Résultat du scan -->
+    <div class="result-card" id="resultCard">
+      <div class="d-flex align-items-start justify-content-between mb-2">
+        <div>
+          <div class="fw-500" id="resultNom" style="font-size:16px"></div>
+          <div class="text-muted" id="resultCode" style="font-size:12px;font-family:var(--mono)"></div>
+        </div>
+        <span id="resultDelta"></span>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        <span class="text-muted" style="font-size:13px">Nouveau stock :</span>
+        <strong id="resultStock" style="font-size:18px"></strong>
+      </div>
+    </div>
+  </div>
+
+  <!-- Colonne droite : actions -->
+  <div class="col-12 col-lg-6">
+
+    <!-- Saisie manuelle -->
+    <div class="card p-3 mb-3">
+      <div class="card-header-label mb-3">Saisie manuelle / résultat scan</div>
+
+      <div class="mb-3">
+        <label class="form-label">Code-barres ou recherche</label>
+        <input type="text" id="manualCode" class="form-control"
+               placeholder="Scanner ou taper le code…"
+               oninput="searchByCode(this.value)">
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">Produit trouvé</label>
+        <select id="produitSelect" class="form-select" onchange="onProduitChange()">
+          <option value="">— Sélectionner un produit —</option>
+          {% raw %}{% endraw %}
+        </select>
+      </div>
+
+      <div class="mb-3 p-3 rounded" id="produitInfo" style="background:var(--bs-body-bg,#f5f4f0);display:none">
+        <div class="d-flex justify-content-between align-items-center">
+          <span class="fw-500" id="infoNom">—</span>
+          <span id="infoBadge"></span>
+        </div>
+        <div class="text-muted mt-1" style="font-size:13px">
+          Stock actuel : <strong id="infoQty">—</strong>
+          &nbsp;·&nbsp; Seuil : <strong id="infoSeuil">—</strong>
+        </div>
+      </div>
+
+      <div class="row g-2 mb-3">
+        <div class="col-6">
+          <label class="form-label">Action</label>
+          <select id="actionSelect" class="form-select">
+            <option value="entree">Entrée (+)</option>
+            <option value="sortie">Sortie (−)</option>
+          </select>
+        </div>
+        <div class="col-6">
+          <label class="form-label">Quantité</label>
+          <input type="number" id="qteInput" class="form-control" value="1" min="1">
+        </div>
+      </div>
+
+      <button class="btn btn-brand w-100" onclick="submitMouvement()" id="btnValider" disabled>
+        <i class="bi bi-check-lg me-1"></i>Valider le mouvement
+      </button>
+    </div>
+
+    <!-- Historique session -->
+    <div class="card p-3">
+      <div class="card-header-label mb-2">Mouvements de la session</div>
+      <div id="sessionLog">
+        <p class="text-muted mb-0" style="font-size:13px">Aucun mouvement pour l'instant.</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<canvas id="beep-canvas"></canvas>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+<script>
+const PRODUITS = {{ produits_json | safe }};
+let scanning = false;
+let lastCode = '';
+let lastCodeTime = 0;
+const DEBOUNCE_MS = 2000;
+const sessionMoves = [];
+
+// Peupler le select
+const sel = document.getElementById('produitSelect');
+PRODUITS.forEach(p => {
+  const opt = document.createElement('option');
+  opt.value = p.id;
+  opt.dataset.nom    = p.nom;
+  opt.dataset.qte    = p.quantite;
+  opt.dataset.seuil  = p.seuil;
+  opt.textContent = p.nom;
+  sel.appendChild(opt);
+});
+
+// ── Démarrer le scanner ──
+function startScanner() {
+  const box = document.getElementById('interactive');
+  Quagga.init({
+    inputStream: {
+      type: 'LiveStream',
+      target: box,
+      constraints: {
+        facingMode: 'environment',   // caméra arrière
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+      },
+    },
+    decoder: {
+      readers: ['ean_reader', 'ean_8_reader', 'code_128_reader',
+                'code_39_reader', 'upc_reader', 'upc_e_reader'],
+    },
+    locate: true,
+  }, err => {
+    if (err) {
+      document.getElementById('scanStatus').textContent = 'Caméra non disponible';
+      console.error(err);
+      return;
+    }
+    Quagga.start();
+    scanning = true;
+    document.getElementById('scanStatus').textContent = 'Scan en cours…';
+    document.getElementById('btnStart').classList.add('d-none');
+    document.getElementById('btnStop').classList.remove('d-none');
+    document.getElementById('scanLine').style.display = 'block';
+  });
+
+  Quagga.onDetected(onDetected);
+}
+
+function stopScanner() {
+  if (!scanning) return;
+  Quagga.stop();
+  scanning = false;
+  document.getElementById('scanStatus').textContent = 'Scanner arrêté';
+  document.getElementById('btnStart').classList.remove('d-none');
+  document.getElementById('btnStop').classList.add('d-none');
+}
+
+// ── Code détecté par la caméra ──
+function onDetected(result) {
+  const code = result.codeResult.code;
+  const now  = Date.now();
+
+  // Debounce — ignorer si même code scanné récemment
+  if (code === lastCode && now - lastCodeTime < DEBOUNCE_MS) return;
+  lastCode     = code;
+  lastCodeTime = now;
+
+  beep();
+  document.getElementById('scanStatus').textContent = `Code : ${code}`;
+  document.getElementById('manualCode').value = code;
+  searchByCode(code);
+}
+
+// ── Recherche par code ou nom ──
+function searchByCode(val) {
+  val = val.trim().toLowerCase();
+  if (!val) return;
+
+  // Chercher dans le nom du produit (simplifié — en prod, stocker le code-barres en DB)
+  const match = PRODUITS.find(p =>
+    p.nom.toLowerCase().includes(val) ||
+    String(p.id) === val
+  );
+
+  if (match) {
+    document.getElementById('produitSelect').value = match.id;
+    onProduitChange();
+  }
+}
+
+// ── Sélection d'un produit ──
+function onProduitChange() {
+  const sel  = document.getElementById('produitSelect');
+  const opt  = sel.options[sel.selectedIndex];
+  const id   = sel.value;
+
+  if (!id) {
+    document.getElementById('produitInfo').style.display = 'none';
+    document.getElementById('btnValider').disabled = true;
+    return;
+  }
+
+  const p = PRODUITS.find(x => String(x.id) === id);
+  if (!p) return;
+
+  document.getElementById('infoNom').textContent   = p.nom;
+  document.getElementById('infoQty').textContent   = p.quantite;
+  document.getElementById('infoSeuil').textContent = p.seuil;
+
+  let badge = '';
+  if (p.quantite === 0)        badge = '<span class="badge" style="background:#FEF0EE;color:#C0392B">Rupture</span>';
+  else if (p.quantite <= p.seuil) badge = '<span class="badge" style="background:#FFF4E6;color:#B7651A">Faible</span>';
+  else                             badge = '<span class="badge" style="background:#EFF8F3;color:#1E7E4A">OK</span>';
+  document.getElementById('infoBadge').innerHTML = badge;
+
+  document.getElementById('produitInfo').style.display = 'block';
+  document.getElementById('btnValider').disabled = false;
+}
+
+// ── Soumettre le mouvement ──
+async function submitMouvement() {
+  const produit_id = document.getElementById('produitSelect').value;
+  const action     = document.getElementById('actionSelect').value;
+  const qte        = document.getElementById('qteInput').value;
+
+  if (!produit_id) return;
+
+  const btn = document.getElementById('btnValider');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Envoi…';
+
+  try {
+    const fd = new FormData();
+    fd.append('produit_id', produit_id);
+    fd.append('action', action);
+    fd.append('qte', qte);
+
+    // Inclure le token CSRF pour les requêtes fetch()
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+    const resp = await fetch('{{ url_for("scanner_mouvement") }}', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrfToken },
+      body: fd,
+    });
+    const data = await resp.json();
+
+    if (data.ok) {
+      // Mettre à jour l'affichage local
+      const p = PRODUITS.find(x => String(x.id) === produit_id);
+      if (p) p.quantite = data.nouveau_stock;
+      onProduitChange();
+
+      // Carte résultat
+      document.getElementById('resultNom').textContent  = data.nom;
+      document.getElementById('resultCode').textContent = `ID #${produit_id}`;
+      document.getElementById('resultStock').textContent = data.nouveau_stock;
+      const deltaEl = document.getElementById('resultDelta');
+      if (data.delta > 0) {
+        deltaEl.innerHTML = `<span class="badge-delta-in">+${data.delta}</span>`;
+      } else {
+        deltaEl.innerHTML = `<span class="badge-delta-out">${data.delta}</span>`;
+      }
+      document.getElementById('resultCard').classList.add('show');
+
+      // Log session
+      addSessionLog(data.nom, action, parseInt(qte), data.nouveau_stock);
+
+      // Reset
+      document.getElementById('manualCode').value = '';
+      document.getElementById('produitSelect').value = '';
+      document.getElementById('produitInfo').style.display = 'none';
+      lastCode = '';
+    } else {
+      alert(data.message);
+    }
+  } catch(e) {
+    alert('Erreur réseau');
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Valider le mouvement';
+}
+
+// ── Historique session ──
+function addSessionLog(nom, action, qte, stock) {
+  sessionMoves.unshift({ nom, action, qte, stock, time: new Date() });
+  const log = document.getElementById('sessionLog');
+  log.innerHTML = sessionMoves.slice(0, 8).map(m => `
+    <div class="d-flex align-items-center gap-2 py-2 border-bottom" style="font-size:13px">
+      <span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:${m.action==='entree'?'#1E7E4A':'#C0392B'}"></span>
+      <span class="flex-grow-1 fw-500">${m.nom}</span>
+      <span style="font-family:var(--mono);color:${m.action==='entree'?'#1E7E4A':'#C0392B'}">${m.action==='entree'?'+':'−'}${m.qte}</span>
+      <span class="text-muted">${m.time.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</span>
+    </div>`).join('');
+}
+
+// ── Bip sonore ──
+function beep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.frequency.value = 880;
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.15);
+  } catch(e) {}
+}
+</script>
+{% endblock %}
