@@ -1326,6 +1326,11 @@ def changer_role(id):
 # HEALTH CHECK & MÉTRIQUES
 # ════════════════════════════════════════════════════════════════
 
+@app.route('/favicon.ico')
+def favicon():
+    return '', 204  # No content — évite le 404 dans les logs
+
+
 @app.route('/health')
 def health_check():
     import platform
