@@ -1387,10 +1387,10 @@ def stripe_checkout(plan_id):
         flash("Plan invalide.", "error"); return redirect(url_for('abonnement'))
     stripe = get_stripe()
     if stripe is None:
-        flash("Stripe n'est pas installé. Lancez : pip install stripe", "error")
+        flash("Paiement non disponible pour le moment. Contactez l'administrateur.", "error")
         return redirect(url_for('abonnement'))
     if not stripe.api_key:
-        flash("Stripe non configuré (STRIPE_SECRET_KEY manquant).", "error")
+        flash("Paiement non configuré. Contactez l'administrateur.", "error")
         return redirect(url_for('abonnement'))
     entreprise = get_entreprise()
     try:

@@ -70,11 +70,13 @@
     </div>
 
     <div class="card p-4" style="font-size:13px;color:var(--muted)">
-      <i class="bi bi-shield-lock me-1"></i>
-      Les paiements sont sécurisés par <strong style="color:var(--bs-body-color)">Stripe</strong>.
-      Nous ne stockons aucune donnée de carte bancaire.
-      <a href="{{ url_for('tarifs') }}" style="display:block;margin-top:8px;color:#185FA5;text-decoration:none">
-        Voir la page des tarifs →
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <i class="bi bi-shield-check" style="color:#1D9E75;font-size:16px"></i>
+        <span style="color:var(--bs-body-color);font-weight:500">Paiements sécurisés</span>
+      </div>
+      Les paiements sont traités par <strong style="color:var(--bs-body-color)">Stripe</strong>, certifié PCI-DSS. Nous ne stockons aucune donnée de carte bancaire.
+      <a href="{{ url_for('tarifs') }}" style="display:block;margin-top:10px;color:#185FA5;text-decoration:none;font-weight:500">
+        Voir tous les tarifs →
       </a>
     </div>
   </div>

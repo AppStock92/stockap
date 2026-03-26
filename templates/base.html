@@ -379,17 +379,9 @@
     <a class="sb-link" href="{{ url_for('export_csv_mouvements') }}">
       📄CSV Mouvements
     </a>
-    {% if est_pro %}
     <a class="sb-link" href="{{ url_for('export_pdf_stock') }}">
       📑PDF Rapport
     </a>
-    {% else %}
-    <a class="sb-link" href="{{ url_for('parametres_email') }}#abonnement"
-       style="opacity:.5">
-      🔒PDF
-      <span class="sb-plan-badge">PRO</span>
-    </a>
-    {% endif %}
     {% endif %}
 
     {% if est_admin %}
