@@ -44,7 +44,7 @@
                      cursor:pointer;display:flex;align-items:center;gap:10px;
                      color:var(--bs-body-color);transition:background .12s;
                      font-family:var(--bs-body-font-family)">
-        <i class="bi {{ icon }}" style="font-size:15px;width:18px;color:var(--muted)"></i>
+        
         {{ label }}
       </button>
       {% endfor %}
@@ -99,7 +99,7 @@
 
         <div class="mt-3 pt-3" style="border-top:1px solid var(--bs-border-color)">
           <div style="font-size:12px;color:var(--muted)">
-            <i class="bi bi-shield-check me-1"></i>
+            
             Email vérifié :
             {% if current_user.email_verifie %}
               <span style="color:#1D9E75">✓ Oui</span>
@@ -149,7 +149,7 @@
             </div>
           </div>
           <button type="submit" class="btn btn-brand">
-            <i class="bi bi-check-lg me-1"></i>Enregistrer la devise
+            Enregistrer la devise
           </button>
         </form>
       </div>
@@ -179,7 +179,7 @@
                    autocomplete="new-password">
           </div>
           <button type="submit" class="btn btn-brand">
-            <i class="bi bi-key me-1"></i>Mettre à jour le mot de passe
+            Mettre à jour le mot de passe
           </button>
         </form>
       </div>
@@ -202,7 +202,7 @@
             </div>
           </div>
           <button type="submit" class="btn btn-brand">
-            <i class="bi bi-check-lg me-1"></i>Enregistrer l'email
+            Enregistrer l'email
           </button>
         </form>
       </div>
@@ -217,13 +217,13 @@
         <form method="POST" action="{{ url_for('envoyer_rapport_alertes') }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button type="submit" class="btn btn-outline-warning">
-            <i class="bi bi-send me-1"></i>Envoyer le rapport maintenant
+            Envoyer le rapport maintenant
           </button>
         </form>
         {% else %}
         <a href="{{ url_for('abonnement') }}"
            class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
-          <i class="bi bi-lock"></i>Alertes email — Plan Pro requis
+          Alertes email — Plan Pro requis
         </a>
         {% endif %}
       </div>
@@ -257,7 +257,7 @@
             </div>
           </div>
           <button type="submit" class="btn btn-brand mt-3">
-            <i class="bi bi-person-plus me-1"></i>Inviter
+            Inviter
           </button>
         </form>
       </div>
@@ -314,7 +314,7 @@
                   onsubmit="return confirm('Supprimer {{ u.username }} ?')">
               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button type="submit" class="btn btn-sm btn-outline-danger">
-                <i class="bi bi-trash"></i>
+                
               </button>
             </form>
             {% endif %}
@@ -368,14 +368,14 @@
         <form method="POST" action="{{ url_for('stripe_checkout', plan_id='pro') }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button type="submit" class="btn btn-brand">
-            <i class="bi bi-arrow-up-circle me-1"></i>Passer au Pro — 9 €/mois
+            Passer au Pro — 9 €/mois
           </button>
         </form>
         {% elif entreprise and entreprise.stripe_customer_id %}
         <form method="POST" action="{{ url_for('stripe_portail') }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button type="submit" class="btn btn-outline-secondary">
-            <i class="bi bi-credit-card me-1"></i>Gérer l'abonnement
+            Gérer l'abonnement
           </button>
         </form>
         {% endif %}
