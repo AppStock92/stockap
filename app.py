@@ -1484,6 +1484,48 @@ def stripe_webhook():
             db.session.commit()
     return {'ok': True}
 
+
+# ════════════════════════════════════════════════════════════════
+# CODES-BARRES — association rapide
+# ════════════════════════════════════════════════════════════════
+
+@app.route('/produits/associer-codes', methods=['GET', 'POST'])
+@login_required
+@manager_ou_admin
+def associer_codes():
+    """Page pour associer les codes-barres aux produits existants."""
+    eid = current_user.entreprise_id
+    produits = Produit.query.filter_by(entreprise_id=eid).order_by(Produit.nom).all()
+
+    if request.method == 'POST':
+        updated = 0
+        for p in produits:
+            code = request.form.get(f'code_{p.id}', '').strip()
+            if code and code != (p.code_barres or ''):
+                p.code_barres = code
+                updated += 1
+            elif not code and p.code_barres:
+                p.code_barres = None
+                updated += 1
+        db.session.commit()
+        flash(f"{updated} produit(s) mis à jour.", "success")
+        return redirect(url_for('associer_codes'))
+
+    return render_template('associer_codes.html', produits=produits)
+
+
+@app.route('/produits/code-barres/<int:id>', methods=['POST'])
+@login_required
+@manager_ou_admin
+def update_code_barres(id):
+    """Met à jour le code-barres d'un produit (appelé depuis le scanner)."""
+    p = Produit.query.filter_by(
+        id=id, entreprise_id=current_user.entreprise_id
+    ).first_or_404()
+    p.code_barres = request.form.get('code_barres', '').strip() or None
+    db.session.commit()
+    return {'ok': True, 'nom': p.nom, 'code_barres': p.code_barres}
+
 # ════════════════════════════════════════════════════════════════
 # NOTIFICATIONS
 # ════════════════════════════════════════════════════════════════

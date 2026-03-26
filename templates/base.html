@@ -9,6 +9,7 @@
   <meta http-equiv="X-Frame-Options" content="DENY">
   <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
   <title>{% block title %}StockApp{% endblock %}</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -355,6 +356,12 @@
        {% if request.endpoint == 'scanner' %}aria-current="page"{% endif %}>
       🔍Scanner
     </a>
+    {% if est_manager %}
+    <a class="sb-link {% if request.endpoint == 'associer_codes' %}active{% endif %}"
+       href="{{ url_for('associer_codes') }}">
+      📋Codes-barres
+    </a>
+    {% endif %}
 
     <div class="sb-divider"></div>
     <div class="sb-section">Catalogue</div>

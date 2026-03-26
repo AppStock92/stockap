@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+{% block title %}Associer codes-barres — StockApp{% endblock %}
+
+{% block head %}
+<style>
+  .produit-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 0; border-bottom: 0.5px solid var(--bs-border-color);
+  }
+  .produit-row:last-child { border-bottom: none }
+  .produit-nom { flex: 1; min-width: 0; font-size: 14px; font-weight: 500 }
+  .produit-stock { font-size: 12px; color: var(--muted); font-family: var(--mono); flex-shrink: 0 }
+  .code-input {
+    width: 180px; flex-shrink: 0;
+    font-family: var(--mono); font-size: 13px;
+    border-radius: 7px; border: 1px solid var(--bs-border-color);
+    background: var(--input-bg); color: var(--bs-body-color);
+    padding: 6px 10px; transition: all .15s;
+  }
+  .code-input:focus { border-color: var(--bs-body-color); outline: none; background: var(--input-focus) }
+  .code-input.has-code { border-color: #1D9E75; background: #EFF8F3 }
+  [data-theme="dark"] .code-input.has-code { background: #0D2E1A }
+  .scan-btn {
+    width: 36px; height: 36px; border-radius: 7px; flex-shrink: 0;
+    border: 1px solid var(--bs-border-color); background: var(--input-bg);
+    color: var(--muted); cursor: pointer; display: flex;
+    align-items: center; justify-content: center; font-size: 16px;
+    transition: all .15s;
+  }
+  .scan-btn:hover { border-color: var(--bs-body-color); color: var(--bs-body-color) }
+  .scan-btn.active { border-color: #22c55e; color: #22c55e; background: #EFF8F3 }
+  [data-theme="dark"] .scan-btn.active { background: #0D2E1A }
+
+  /* Mini scanner modal */
+  #scan-modal {
+    display: none; position: fixed; inset: 0; z-index: 1050;
+    background: rgba(0,0,0,.6); align-items: center; justify-content: center;
+  }
+  #scan-modal.open { display: flex }
+  #scan-box {
+    background: var(--surface); border-radius: 16px; padding: 20px;
+    width: 320px; max-width: 90vw;
+  }
+  #scan-video-wrap {
+    position: relative; border-radius: 10px; overflow: hidden;
+    background: #000; aspect-ratio: 4/3; margin-bottom: 12px;
+  }
+  #scan-video { width: 100%; height: 100%; object-fit: cover; display: block }
+  .scan-frame-mini {
+    position: absolute; inset: 15%;
+    border: 2px solid rgba(255,255,255,.7); border-radius: 8px;
+    box-shadow: 0 0 0 9999px rgba(0,0,0,.4);
+  }
+  .scan-line-mini {
+    position: absolute; left: 4%; right: 4%; height: 2px;
+    background: linear-gradient(90deg, transparent, #22c55e, transparent);
+    animation: scanA 1.6s ease-in-out infinite;
+  }
+  @keyframes scanA { 0%,100%{top:15%} 50%{top:80%} }
+  #scan-status-mini {
+    position: absolute; bottom: 6px; left: 0; right: 0;
+    text-align: center; font-size: 11px; color: rgba(255,255,255,.9);
+    font-family: var(--mono);
+  }
+  #scan-target-name {
+    font-size: 13px; font-weight: 500; margin-bottom: 10px;
+    color: var(--bs-body-color); text-align: center;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <span class="page-label mb-0">Associer les codes-barres</span>
+  <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm">
+    ← Retour
+  </a>
+</div>
+
+<!-- Info -->
+<div class="alert alert-info d-flex gap-2 mb-4" style="font-size:13px;background:#E6F1FB;border-color:#378ADD;color:#185FA5;border-left-width:3px;border-top:none;border-right:none;border-bottom:none">
+  <span>💡</span>
+  <div>
+    Pour chaque produit, tape son code-barres ou clique sur 📷 pour le scanner avec la caméra.
+    Enregistre tout en bas avec le bouton <strong>Sauvegarder</strong>.
+  </div>
+</div>
+
+{% if not produits %}
+<div class="card p-4 text-center" style="color:var(--muted);font-size:14px">
+  Aucun produit trouvé. <a href="{{ url_for('index') }}">Ajouter des produits →</a>
+</div>
+{% else %}
+<form method="POST">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <div class="card p-4 mb-4">
+
+    <!-- Barre de progression -->
+    {% set avec_code = produits | selectattr('code_barres') | list | length %}
+    {% set total = produits | length %}
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <span class="card-header-label">{{ total }} produit(s)</span>
+      <span style="font-size:12px;font-family:var(--mono);color:var(--muted)">
+        {{ avec_code }}/{{ total }} avec code
+      </span>
+    </div>
+    <div style="height:4px;background:var(--bs-border-color);border-radius:2px;overflow:hidden;margin-bottom:20px">
+      <div style="height:100%;background:#1D9E75;border-radius:2px;
+                  width:{{ ((avec_code / total) * 100) | int if total > 0 else 0 }}%;transition:width .4s"></div>
+    </div>
+
+    <!-- Barre de recherche rapide -->
+    <div class="mb-3">
+      <input type="text" id="filterInput" class="form-control"
+             placeholder="Filtrer les produits…"
+             oninput="filtrerListe(this.value)" autocomplete="off">
+    </div>
+
+    <!-- Liste produits -->
+    <div id="produits-list">
+      {% for p in produits %}
+      <div class="produit-row" data-nom="{{ p.nom | lower }}">
+        <div class="produit-nom">
+          {{ p.nom }}
+          {% if p.code_barres %}
+          <div style="font-size:11px;color:#1D9E75;font-family:var(--mono)">✓ {{ p.code_barres }}</div>
+          {% endif %}
+        </div>
+        <span class="produit-stock">{{ p.quantite }} unité(s)</span>
+        <input type="text" name="code_{{ p.id }}"
+               id="inp_{{ p.id }}"
+               class="code-input {% if p.code_barres %}has-code{% endif %}"
+               value="{{ p.code_barres or '' }}"
+               placeholder="Code-barres…"
+               inputmode="numeric"
+               oninput="onCodeInput(this)"
+               autocomplete="off">
+        <button type="button" class="scan-btn" id="scanbtn_{{ p.id }}"
+                onclick="ouvrirScanner({{ p.id }}, '{{ p.nom }}')"
+                title="Scanner avec la caméra">
+          📷
+        </button>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="d-flex gap-2">
+    <button type="submit" class="btn btn-brand flex-grow-1" style="height:48px;font-size:15px">
+      💾 Sauvegarder tous les codes
+    </button>
+    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary" style="height:48px;padding:0 20px;display:flex;align-items:center">
+      Annuler
+    </a>
+  </div>
+</form>
+{% endif %}
+
+<!-- ═══ Mini scanner modal ═══ -->
+<div id="scan-modal">
+  <div id="scan-box">
+    <div id="scan-target-name">—</div>
+    <div id="scan-video-wrap">
+      <video id="scan-video" autoplay playsinline muted></video>
+      <div class="scan-frame-mini">
+        <div class="scan-line-mini"></div>
+      </div>
+      <div id="scan-status-mini">Pointez vers un code-barres</div>
+    </div>
+    <div class="d-flex gap-2">
+      <button type="button" class="btn btn-outline-secondary flex-grow-1" onclick="fermerScanner()">
+        Annuler
+      </button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let scanStream   = null;
+let scanProduitId = null;
+let scanInterval  = null;
+
+// ── Filtrer la liste ──
+function filtrerListe(val) {
+  val = val.toLowerCase();
+  document.querySelectorAll('.produit-row').forEach(row => {
+    row.style.display = (!val || row.dataset.nom.includes(val)) ? '' : 'none';
+  });
+}
+
+// ── Style input ──
+function onCodeInput(el) {
+  el.classList.toggle('has-code', el.value.trim().length > 0);
+}
+
+// ── Ouvrir le mini scanner ──
+async function ouvrirScanner(produitId, nom) {
+  scanProduitId = produitId;
+  document.getElementById('scan-target-name').textContent = '📦 ' + nom;
+  document.getElementById('scan-modal').classList.add('open');
+  document.getElementById('scan-status-mini').textContent = 'Démarrage caméra…';
+
+  try {
+    scanStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } }
+    });
+    document.getElementById('scan-video').srcObject = scanStream;
+    document.getElementById('scan-status-mini').textContent = 'Pointez vers un code-barres';
+
+    // BarcodeDetector natif si disponible
+    if ('BarcodeDetector' in window) {
+      const detector = new BarcodeDetector({
+        formats: ['ean_13','ean_8','code_128','code_39','upc_a','upc_e','qr_code']
+      });
+      const video = document.getElementById('scan-video');
+      scanInterval = setInterval(async () => {
+        try {
+          const codes = await detector.detect(video);
+          if (codes.length > 0) {
+            codeDetecte(codes[0].rawValue);
+          }
+        } catch(e) {}
+      }, 300);
+    } else {
+      // Fallback ZXing
+      loadZXingMini();
+    }
+  } catch(e) {
+    document.getElementById('scan-status-mini').textContent = 'Erreur : ' + e.message;
+  }
+}
+
+function loadZXingMini() {
+  const s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.1/umd/index.min.js';
+  s.onload = () => {
+    try {
+      const reader = new ZXingBrowser.BrowserMultiFormatReader();
+      reader.decodeFromStream(scanStream, document.getElementById('scan-video'), (result) => {
+        if (result) codeDetecte(result.getText());
+      });
+    } catch(e) {}
+  };
+  document.head.appendChild(s);
+}
+
+// ── Code détecté ──
+function codeDetecte(code) {
+  // Bip
+  try {
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const g   = ctx.createGain();
+    osc.connect(g); g.connect(ctx.destination);
+    osc.frequency.value = 1046; osc.type = 'sine';
+    g.gain.setValueAtTime(0.3, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+    osc.start(); osc.stop(ctx.currentTime + 0.1);
+  } catch(e) {}
+
+  if (navigator.vibrate) navigator.vibrate(100);
+
+  // Remplir le champ
+  const inp = document.getElementById('inp_' + scanProduitId);
+  if (inp) {
+    inp.value = code;
+    inp.classList.add('has-code');
+  }
+
+  document.getElementById('scan-status-mini').textContent = '✓ Code scanné : ' + code;
+
+  // Fermer après 800ms
+  setTimeout(fermerScanner, 800);
+}
+
+// ── Fermer scanner ──
+function fermerScanner() {
+  if (scanInterval) { clearInterval(scanInterval); scanInterval = null; }
+  if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
+  document.getElementById('scan-video').srcObject = null;
+  document.getElementById('scan-modal').classList.remove('open');
+  scanProduitId = null;
+}
+
+// Fermer si clic sur le fond
+document.getElementById('scan-modal').addEventListener('click', function(e) {
+  if (e.target === this) fermerScanner();
+});
+</script>
+{% endblock %}
