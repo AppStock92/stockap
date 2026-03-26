@@ -3,88 +3,45 @@
 
 {% block head %}
 <style>
-  #video-container {
-    position: relative;
-    width: 100%;
-    max-width: 500px;
-    margin: 0 auto;
-    border-radius: 14px;
-    overflow: hidden;
-    background: #000;
-    aspect-ratio: 4/3;
+  #video-wrap{
+    position:relative;width:100%;max-width:500px;margin:0 auto;
+    border-radius:14px;overflow:hidden;background:#000;aspect-ratio:4/3;
   }
-  #video {
-    width: 100%; height: 100%;
-    object-fit: cover; display: block;
-  }
-  /* Cadre de visée */
-  .scan-overlay {
-    position: absolute; inset: 0;
-    display: flex; align-items: center; justify-content: center;
-    pointer-events: none;
-  }
-  .scan-frame {
-    width: 65%; aspect-ratio: 3/1.4;
-    border: 2.5px solid rgba(255,255,255,.85);
-    border-radius: 10px;
-    box-shadow: 0 0 0 9999px rgba(0,0,0,.45);
-    position: relative;
-  }
-  /* Coins colorés */
-  .scan-frame::before, .scan-frame::after,
-  .scan-frame span::before, .scan-frame span::after {
-    content: '';
-    position: absolute;
-    width: 18px; height: 18px;
-    border-color: #22c55e;
-    border-style: solid;
-  }
-  .scan-frame::before  { top:-2px;left:-2px;border-width:3px 0 0 3px;border-radius:4px 0 0 0 }
-  .scan-frame::after   { top:-2px;right:-2px;border-width:3px 3px 0 0;border-radius:0 4px 0 0 }
-  .scan-frame span::before { bottom:-2px;left:-2px;border-width:0 0 3px 3px;border-radius:0 0 0 4px }
-  .scan-frame span::after  { bottom:-2px;right:-2px;border-width:0 3px 3px 0;border-radius:0 0 4px 0 }
-  /* Ligne de scan animée */
-  .scan-line {
-    position: absolute; left: 4%; right: 4%;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, #22c55e, transparent);
-    animation: scanAnim 1.8s ease-in-out infinite;
-  }
-  @keyframes scanAnim { 0%,100%{top:8%} 50%{top:85%} }
+  #video{width:100%;height:100%;object-fit:cover;display:block}
 
-  #scan-status {
-    position: absolute; bottom: 10px; left: 0; right: 0;
-    text-align: center; font-size: 12px;
-    color: rgba(255,255,255,.85); font-family: var(--mono);
-    text-shadow: 0 1px 3px rgba(0,0,0,.8);
-  }
+  .scan-overlay{position:absolute;inset:0;display:flex;align-items:center;
+                justify-content:center;pointer-events:none}
+  .scan-frame{width:68%;aspect-ratio:3/1.5;border:2px solid rgba(255,255,255,.7);
+              border-radius:10px;box-shadow:0 0 0 9999px rgba(0,0,0,.45);position:relative}
+  .scan-frame::before,.scan-frame::after,
+  .scan-frame span::before,.scan-frame span::after{
+    content:'';position:absolute;width:18px;height:18px;border-color:#22c55e;border-style:solid}
+  .scan-frame::before {top:-2px;left:-2px;border-width:3px 0 0 3px;border-radius:4px 0 0 0}
+  .scan-frame::after  {top:-2px;right:-2px;border-width:3px 3px 0 0;border-radius:0 4px 0 0}
+  .scan-frame span::before{bottom:-2px;left:-2px;border-width:0 0 3px 3px;border-radius:0 0 0 4px}
+  .scan-frame span::after {bottom:-2px;right:-2px;border-width:0 3px 3px 0;border-radius:0 0 4px 0}
 
-  /* Résultat flash */
-  .flash-result {
-    position: absolute; inset: 0;
-    background: rgba(34,197,94,.25);
-    display: none; border-radius: 14px;
-  }
-  .flash-result.show { display: block; animation: flashIn .4s ease }
-  @keyframes flashIn { from{opacity:0} to{opacity:1} }
+  .scan-line{position:absolute;left:4%;right:4%;height:2px;
+             background:linear-gradient(90deg,transparent,#22c55e,transparent);
+             animation:scanAnim 1.8s ease-in-out infinite;display:none}
+  @keyframes scanAnim{0%,100%{top:8%}50%{top:85%}}
 
-  /* Carte résultat */
-  .result-pill {
-    display: none; align-items: center; gap: 10px;
-    background: var(--surface); border: 1px solid var(--bs-border-color);
-    border-radius: 12px; padding: 12px 16px; margin-top: 12px;
-  }
-  .result-pill.show { display: flex }
-  .result-icon { width: 36px; height: 36px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0 }
+  #scan-status{position:absolute;bottom:10px;left:0;right:0;text-align:center;
+               font-size:12px;color:rgba(255,255,255,.9);font-family:var(--mono);
+               text-shadow:0 1px 3px rgba(0,0,0,.9);padding:0 8px}
 
-  /* Log */
-  .log-item { display: flex; align-items: center; gap: 10px;
-    padding: 9px 0; border-bottom: 0.5px solid var(--bs-border-color); font-size: 13px }
-  .log-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0 }
+  .flash-ok{position:absolute;inset:0;background:rgba(34,197,94,.3);
+            pointer-events:none;display:none;border-radius:14px}
 
-  /* Mobile friendly boutons */
-  .big-btn { height: 52px; font-size: 15px; font-weight: 500; border-radius: 10px }
+  .result-pill{display:none;align-items:center;gap:10px;
+    background:var(--surface);border:1px solid var(--bs-border-color);
+    border-radius:12px;padding:12px 16px;margin-top:10px}
+  .result-pill.show{display:flex}
+
+  .log-item{display:flex;align-items:center;gap:10px;
+    padding:9px 0;border-bottom:.5px solid var(--bs-border-color);font-size:13px}
+  .log-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+  .big-btn{height:52px;font-size:15px;font-weight:500;border-radius:10px}
 </style>
 {% endblock %}
 
@@ -92,82 +49,64 @@
 <span class="page-label">Scanner code-barres</span>
 
 <div class="row g-4">
-
-  <!-- ═══ Caméra ═══ -->
   <div class="col-12 col-lg-6">
     <div class="card p-3 mb-3">
       <div class="card-header-label mb-3">Caméra</div>
-
-      <div id="video-container" class="mb-3">
+      <div id="video-wrap" class="mb-3">
         <video id="video" autoplay playsinline muted></video>
-        <div class="flash-result" id="flashResult"></div>
+        <div class="flash-ok" id="flashOk"></div>
         <div class="scan-overlay">
           <div class="scan-frame">
             <span></span>
-            <div class="scan-line" id="scanLine" style="display:none"></div>
+            <div class="scan-line" id="scanLine"></div>
           </div>
         </div>
         <div id="scan-status">Appuie sur Démarrer</div>
       </div>
-
       <div class="d-flex gap-2">
         <button class="btn btn-brand big-btn flex-grow-1" id="btnStart" onclick="startScanner()">
-          <i class="bi bi-camera me-2"></i>Démarrer le scanner
+          📷 Démarrer le scanner
         </button>
         <button class="btn btn-outline-secondary big-btn flex-grow-1 d-none" id="btnStop" onclick="stopScanner()">
-          <i class="bi bi-stop-circle me-2"></i>Arrêter
+          ⏹ Arrêter
         </button>
       </div>
-
-      <!-- Résultat scan -->
       <div class="result-pill" id="resultPill">
-        <div class="result-icon" id="resultIcon">📦</div>
+        <div style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;
+                    justify-content:center;font-size:18px;flex-shrink:0" id="resultIcon">📦</div>
         <div style="flex:1;min-width:0">
           <div style="font-weight:500;font-size:14px" id="resultNom">—</div>
           <div style="font-size:12px;color:var(--muted);font-family:var(--mono)" id="resultInfo">—</div>
         </div>
-        <span id="resultDelta" style="font-family:var(--mono);font-size:14px;font-weight:600"></span>
+        <span id="resultDelta" style="font-family:var(--mono);font-size:15px;font-weight:700"></span>
       </div>
     </div>
   </div>
 
-  <!-- ═══ Actions ═══ -->
   <div class="col-12 col-lg-6">
-
     <div class="card p-3 mb-3">
       <div class="card-header-label mb-3">Action</div>
-
-      <!-- Recherche / saisie manuelle -->
       <div class="mb-3">
         <label class="form-label">Rechercher un produit</label>
         <input type="text" id="searchInput" class="form-control"
                placeholder="Taper le nom ou l'ID…"
-               oninput="filterProduits(this.value)"
-               autocomplete="off">
+               oninput="filterProduits(this.value)" autocomplete="off">
       </div>
-
-      <!-- Sélecteur produit -->
       <div class="mb-3">
         <label class="form-label">Produit sélectionné</label>
-        <select id="produitSelect" class="form-select" onchange="onProduitChange()" style="font-size:14px">
+        <select id="produitSelect" class="form-select" onchange="onProduitChange()">
           <option value="">— Sélectionner —</option>
-          {% for p in produits_json | tojson | safe %}{% endfor %}
         </select>
       </div>
-
-      <!-- Info produit -->
       <div id="produitInfo" class="rounded p-3 mb-3" style="background:var(--bs-body-bg);display:none">
         <div class="d-flex justify-content-between align-items-center mb-1">
           <strong id="infoNom" style="font-size:14px"></strong>
           <span id="infoBadge"></span>
         </div>
         <div style="font-size:13px;color:var(--muted)">
-          Stock : <strong id="infoQty"></strong>
-          &nbsp;·&nbsp; Seuil : <strong id="infoSeuil"></strong>
+          Stock : <strong id="infoQty"></strong> &nbsp;·&nbsp; Seuil : <strong id="infoSeuil"></strong>
         </div>
       </div>
-
-      <!-- Action + quantité -->
       <div class="row g-2 mb-3">
         <div class="col-6">
           <label class="form-label">Action</label>
@@ -181,149 +120,163 @@
           <input type="number" id="qteInput" class="form-control" value="1" min="1" inputmode="numeric">
         </div>
       </div>
-
       <button class="btn btn-brand big-btn w-100" id="btnValider"
               onclick="submitMouvement()" disabled>
-        <i class="bi bi-check-lg me-2"></i>Valider
+        ✓ Valider le mouvement
       </button>
     </div>
 
-    <!-- Historique session -->
     <div class="card p-3">
       <div class="card-header-label mb-2">Session</div>
-      <div id="sessionLog">
-        <p style="font-size:13px;color:var(--muted);margin:0">Aucun mouvement encore.</p>
+      <div id="sessionLog" style="font-size:13px;color:var(--muted)">
+        Aucun mouvement encore.
       </div>
     </div>
-
   </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<!-- ZXing — bien meilleur que QuaggaJS sur mobile -->
-<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.19.1/umd/index.min.js"></script>
 <script>
 const PRODUITS = {{ produits_json | safe }};
-let codeReader = null;
-let scanning   = false;
-let lastCode   = '';
-let lastTime   = 0;
+let stream    = null;
+let scanning  = false;
+let lastCode  = '';
+let lastTime  = 0;
 const DEBOUNCE = 2500;
 const sessionMoves = [];
 
-// ── Peupler le select au chargement ──
+// ── Remplir le select ──
 function buildSelect(list) {
   const sel = document.getElementById('produitSelect');
-  // Garder l'option vide
   while (sel.options.length > 1) sel.remove(1);
-  list.forEach(p => {
-    const opt = new Option(`${p.nom} (stock: ${p.quantite})`, p.id);
-    sel.appendChild(opt);
-  });
+  list.forEach(p => sel.add(new Option(`${p.nom} (stock: ${p.quantite})`, p.id)));
 }
 buildSelect(PRODUITS);
 
-// ── Filtrer la liste par recherche ──
+// ── Filtrer ──
 function filterProduits(val) {
   val = val.trim().toLowerCase();
-  if (!val) { buildSelect(PRODUITS); return; }
-  const filtered = PRODUITS.filter(p =>
-    p.nom.toLowerCase().includes(val) ||
-    String(p.id) === val
-  );
+  const filtered = val
+    ? PRODUITS.filter(p => p.nom.toLowerCase().includes(val) || String(p.id) === val)
+    : PRODUITS;
   buildSelect(filtered);
-  // Auto-sélectionner si un seul résultat
   if (filtered.length === 1) {
     document.getElementById('produitSelect').value = filtered[0].id;
     onProduitChange();
   }
 }
 
-// ── Démarrer le scanner ZXing ──
+// ── Démarrer caméra + BarcodeDetector (natif) ou fallback ZXing ──
 async function startScanner() {
+  setStatus('Accès caméra…');
   try {
-    codeReader = new ZXing.BrowserMultiFormatReader();
-
-    // Récupérer les caméras disponibles
-    const devices = await ZXing.BrowserCodeReader.listVideoInputDevices();
-    if (!devices || devices.length === 0) {
-      setStatus('Aucune caméra détectée');
-      return;
-    }
-
-    // Préférer la caméra arrière
-    const back = devices.find(d =>
-      d.label.toLowerCase().includes('back') ||
-      d.label.toLowerCase().includes('rear') ||
-      d.label.toLowerCase().includes('environment') ||
-      d.label.toLowerCase().includes('arrière')
-    ) || devices[devices.length - 1];
-
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+    document.getElementById('video').srcObject = stream;
     document.getElementById('btnStart').classList.add('d-none');
     document.getElementById('btnStop').classList.remove('d-none');
     document.getElementById('scanLine').style.display = 'block';
-    setStatus('Scan en cours… pointez vers un code-barres');
-
-    await codeReader.decodeFromVideoDevice(back.deviceId, 'video', (result, err) => {
-      if (result) {
-        const code = result.getText();
-        const now  = Date.now();
-        if (code === lastCode && now - lastTime < DEBOUNCE) return;
-        lastCode = code;
-        lastTime = now;
-        onCodeDetecte(code);
-      }
-    });
-
     scanning = true;
+    setStatus('Pointez vers un code-barres…');
+
+    // Essayer l'API BarcodeDetector native (Chrome Android, Samsung Browser)
+    if ('BarcodeDetector' in window) {
+      setStatus('✓ Scanner natif actif');
+      runNativeDetector();
+    } else {
+      // Fallback : ZXing via canvas
+      setStatus('Scanner compatible actif');
+      loadZXingFallback();
+    }
   } catch(e) {
-    setStatus('Erreur caméra : ' + e.message);
-    console.error(e);
+    setStatus('Erreur caméra : ' + (e.message || e));
   }
 }
 
 function stopScanner() {
-  if (codeReader) {
-    codeReader.reset();
-    codeReader = null;
-  }
   scanning = false;
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  document.getElementById('video').srcObject = null;
   document.getElementById('btnStart').classList.remove('d-none');
   document.getElementById('btnStop').classList.add('d-none');
   document.getElementById('scanLine').style.display = 'none';
   setStatus('Scanner arrêté');
 }
 
+// ── BarcodeDetector natif (le plus fiable sur Android) ──
+async function runNativeDetector() {
+  const detector = new BarcodeDetector({
+    formats: ['ean_13','ean_8','code_128','code_39','qr_code','upc_a','upc_e','itf','data_matrix']
+  });
+  const video = document.getElementById('video');
+  async function tick() {
+    if (!scanning) return;
+    try {
+      const barcodes = await detector.detect(video);
+      if (barcodes.length > 0) {
+        const code = barcodes[0].rawValue;
+        const now  = Date.now();
+        if (code !== lastCode || now - lastTime > DEBOUNCE) {
+          lastCode = code; lastTime = now;
+          onCodeDetecte(code);
+        }
+      }
+    } catch(e) {}
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+// ── Fallback ZXing via canvas ──
+function loadZXingFallback() {
+  const script = document.createElement('script');
+  script.src = 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.1/umd/index.min.js';
+  script.onload = () => {
+    try {
+      const video  = document.getElementById('video');
+      const reader = new ZXingBrowser.BrowserMultiFormatReader();
+      reader.decodeFromStream(stream, video, (result, err) => {
+        if (!scanning) return;
+        if (result) {
+          const code = result.getText();
+          const now  = Date.now();
+          if (code !== lastCode || now - lastTime > DEBOUNCE) {
+            lastCode = code; lastTime = now;
+            onCodeDetecte(code);
+          }
+        }
+      });
+      setStatus('Scanner ZXing actif');
+    } catch(e) {
+      setStatus('Erreur scanner : ' + e.message);
+    }
+  };
+  script.onerror = () => setStatus('Impossible de charger le scanner');
+  document.head.appendChild(script);
+}
+
 // ── Code détecté ──
 function onCodeDetecte(code) {
   beep();
-  flash();
-  setStatus('✓ Code : ' + code);
+  flashGreen();
+  setStatus('✓ ' + code);
+  if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
 
-  // Chercher dans les produits par nom ou ID
-  const match = PRODUITS.find(p =>
-    String(p.id) === code ||
-    p.nom.toLowerCase() === code.toLowerCase()
-  );
-
+  const match = PRODUITS.find(p => String(p.id) === code || p.nom.toLowerCase() === code.toLowerCase());
   if (match) {
     document.getElementById('produitSelect').value = match.id;
     onProduitChange();
-    // Vibrer si disponible
-    if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
   } else {
-    // Mettre dans la recherche manuelle
     document.getElementById('searchInput').value = code;
     filterProduits(code);
-    setStatus(`Code "${code}" — produit non trouvé, sélectionnez manuellement`);
   }
 }
 
 // ── Sélection produit ──
 function onProduitChange() {
-  const sel = document.getElementById('produitSelect');
-  const id  = sel.value;
+  const id = document.getElementById('produitSelect').value;
   if (!id) {
     document.getElementById('produitInfo').style.display = 'none';
     document.getElementById('btnValider').disabled = true;
@@ -336,20 +289,17 @@ function onProduitChange() {
   document.getElementById('infoQty').textContent   = p.quantite;
   document.getElementById('infoSeuil').textContent = p.seuil;
 
-  let badge = '';
-  if (p.quantite === 0)
-    badge = '<span style="background:#FEF0EE;color:#C0392B;padding:2px 8px;border-radius:6px;font-size:11px;font-family:var(--mono)">Rupture</span>';
-  else if (p.quantite <= p.seuil)
-    badge = '<span style="background:#FFF4E6;color:#B7651A;padding:2px 8px;border-radius:6px;font-size:11px;font-family:var(--mono)">Faible</span>';
-  else
-    badge = '<span style="background:#EFF8F3;color:#1E7E4A;padding:2px 8px;border-radius:6px;font-size:11px;font-family:var(--mono)">OK</span>';
-
+  const badge = p.quantite === 0
+    ? '<span style="background:#FEF0EE;color:#C0392B;padding:2px 8px;border-radius:6px;font-size:11px">Rupture</span>'
+    : p.quantite <= p.seuil
+    ? '<span style="background:#FFF4E6;color:#B7651A;padding:2px 8px;border-radius:6px;font-size:11px">Faible</span>'
+    : '<span style="background:#EFF8F3;color:#1E7E4A;padding:2px 8px;border-radius:6px;font-size:11px">OK</span>';
   document.getElementById('infoBadge').innerHTML = badge;
   document.getElementById('produitInfo').style.display = 'block';
   document.getElementById('btnValider').disabled = false;
 }
 
-// ── Valider le mouvement ──
+// ── Valider mouvement ──
 async function submitMouvement() {
   const produit_id = document.getElementById('produitSelect').value;
   const action     = document.getElementById('actionSelect').value;
@@ -358,45 +308,32 @@ async function submitMouvement() {
 
   const btn = document.getElementById('btnValider');
   btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Envoi…';
+  btn.textContent = 'Envoi…';
 
   try {
     const fd = new FormData();
     fd.append('produit_id', produit_id);
     fd.append('action', action);
     fd.append('qte', qte);
-
     const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
     const resp = await fetch('{{ url_for("scanner_mouvement") }}', {
-      method: 'POST',
-      headers: { 'X-CSRFToken': csrf },
-      body: fd,
+      method: 'POST', headers: { 'X-CSRFToken': csrf }, body: fd
     });
     const data = await resp.json();
 
     if (data.ok) {
-      // MAJ locale
       const p = PRODUITS.find(x => String(x.id) === String(produit_id));
       if (p) p.quantite = data.nouveau_stock;
+      onProduitChange();
 
-      // Afficher résultat
       document.getElementById('resultNom').textContent  = data.nom;
-      document.getElementById('resultInfo').textContent =
-        `Stock → ${data.nouveau_stock} unité(s)`;
-      const delta = data.delta;
-      const deltaEl = document.getElementById('resultDelta');
-      if (delta > 0) {
-        deltaEl.textContent = `+${delta}`;
-        deltaEl.style.color = '#1E7E4A';
-        document.getElementById('resultIcon').textContent = '📥';
-      } else {
-        deltaEl.textContent = `${delta}`;
-        deltaEl.style.color = '#C0392B';
-        document.getElementById('resultIcon').textContent = '📤';
-      }
+      document.getElementById('resultInfo').textContent = `Stock → ${data.nouveau_stock}`;
+      const d = document.getElementById('resultDelta');
+      d.textContent = data.delta > 0 ? `+${data.delta}` : `${data.delta}`;
+      d.style.color = data.delta > 0 ? '#1E7E4A' : '#C0392B';
+      document.getElementById('resultIcon').textContent = data.delta > 0 ? '📥' : '📤';
       document.getElementById('resultPill').classList.add('show');
 
-      // Log session
       addLog(data.nom, action, qte, data.nouveau_stock);
 
       // Reset
@@ -406,20 +343,17 @@ async function submitMouvement() {
       document.getElementById('qteInput').value = 1;
       buildSelect(PRODUITS);
       lastCode = '';
-
       if (navigator.vibrate) navigator.vibrate(200);
     } else {
       alert('Erreur : ' + (data.message || 'Inconnue'));
     }
-  } catch(e) {
-    alert('Erreur réseau');
-  }
+  } catch(e) { alert('Erreur réseau'); }
 
   btn.disabled = false;
-  btn.innerHTML = '<i class="bi bi-check-lg me-2"></i>Valider';
+  btn.textContent = '✓ Valider le mouvement';
 }
 
-// ── Log de session ──
+// ── Log session ──
 function addLog(nom, action, qte, stock) {
   sessionMoves.unshift({ nom, action, qte, stock, t: new Date() });
   document.getElementById('sessionLog').innerHTML =
@@ -427,40 +361,34 @@ function addLog(nom, action, qte, stock) {
       <div class="log-item">
         <div class="log-dot" style="background:${m.action==='entree'?'#1E7E4A':'#C0392B'}"></div>
         <span style="flex:1;font-weight:500">${m.nom}</span>
-        <span style="font-family:var(--mono);color:${m.action==='entree'?'#1E7E4A':'#C0392B'};font-weight:600">
+        <span style="font-family:var(--mono);font-weight:600;color:${m.action==='entree'?'#1E7E4A':'#C0392B'}">
           ${m.action==='entree'?'+':'−'}${m.qte}
         </span>
-        <span style="color:var(--muted);font-size:12px">
+        <span style="color:var(--muted);font-size:11px">
           ${m.t.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}
         </span>
       </div>`).join('');
 }
 
 // ── Utilitaires ──
-function setStatus(msg) {
-  document.getElementById('scan-status').textContent = msg;
-}
+function setStatus(msg) { document.getElementById('scan-status').textContent = msg; }
 
-function flash() {
-  const el = document.getElementById('flashResult');
-  el.classList.remove('show');
-  void el.offsetWidth;
-  el.classList.add('show');
-  setTimeout(() => el.classList.remove('show'), 600);
+function flashGreen() {
+  const el = document.getElementById('flashOk');
+  el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 500);
 }
 
 function beep() {
   try {
-    const ctx  = new (window.AudioContext || window.webkitAudioContext)();
-    const osc  = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.frequency.value = 1046;
-    osc.type = 'sine';
-    gain.gain.setValueAtTime(0.4, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.12);
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const g   = ctx.createGain();
+    osc.connect(g); g.connect(ctx.destination);
+    osc.frequency.value = 1046; osc.type = 'sine';
+    g.gain.setValueAtTime(0.4, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+    osc.start(); osc.stop(ctx.currentTime + 0.12);
   } catch(e) {}
 }
 </script>
