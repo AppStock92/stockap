@@ -742,6 +742,70 @@ function skipOnboarding(){
 })();
 </script>
 
+
+<!-- ═══════ AUTO-DÉCONNEXION 5 MIN ═══════════════════════════════ -->
+{% if current_user.is_authenticated %}
+<div id="timeout-warning"
+     style="display:none;position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+            background:#1A1A18;color:#fff;padding:14px 20px;border-radius:12px;
+            z-index:9999;font-size:13px;box-shadow:0 4px 20px rgba(0,0,0,.3);
+            display:none;align-items:center;gap:12px;white-space:nowrap">
+  <span>⚠️ Session expire dans <strong id="countdown">60</strong>s</span>
+  <button onclick="resetTimer()"
+          style="background:#fff;color:#1A1A18;border:none;border-radius:6px;
+                 padding:5px 12px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit">
+    Rester connecté
+  </button>
+</div>
+
+<script>
+(function() {
+  const TIMEOUT_MS  = 5 * 60 * 1000;  // 5 minutes
+  const WARNING_MS  = 60 * 1000;       // avertissement 1 min avant
+  const WARNING_EL  = document.getElementById('timeout-warning');
+  const COUNTDOWN   = document.getElementById('countdown');
+
+  let timer, countdownTimer;
+  let warningShown = false;
+
+  function resetTimer() {
+    clearTimeout(timer);
+    clearInterval(countdownTimer);
+    if (WARNING_EL) WARNING_EL.style.display = 'none';
+    warningShown = false;
+    COUNTDOWN && (COUNTDOWN.textContent = '60');
+    timer = setTimeout(showWarning, TIMEOUT_MS - WARNING_MS);
+  }
+
+  function showWarning() {
+    if (!WARNING_EL) return;
+    WARNING_EL.style.display = 'flex';
+    warningShown = true;
+    let secs = 60;
+    COUNTDOWN && (COUNTDOWN.textContent = secs);
+    countdownTimer = setInterval(() => {
+      secs--;
+      COUNTDOWN && (COUNTDOWN.textContent = secs);
+      if (secs <= 0) {
+        clearInterval(countdownTimer);
+        // Déconnexion côté client
+        window.location.href = '{{ url_for("logout") }}';
+      }
+    }, 1000);
+  }
+
+  // Réinitialiser sur toute activité
+  ['mousemove','keydown','click','scroll','touchstart'].forEach(evt =>
+    document.addEventListener(evt, resetTimer, { passive: true })
+  );
+
+  // Démarrer
+  resetTimer();
+})();
+</script>
+{% endif %}
+<!-- ═══════ /AUTO-DÉCONNEXION ════════════════════════════════════ -->
+
 {% block scripts %}{% endblock %}
 </body>
 </html>

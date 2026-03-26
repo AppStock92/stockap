@@ -9,7 +9,7 @@ import time
 from logging.handlers import RotatingFileHandler
 from functools import wraps
 
-from flask import Flask, render_template, request, redirect, url_for, flash, make_response
+from flask import Flask, render_template, request, redirect, url_for, flash, make_response, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
@@ -105,6 +105,7 @@ app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_USERNAME', '')
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE']   = not app.debug
+app.config['PERMANENT_SESSION_LIFETIME'] = 300  # 5 minutes en secondes
 
 # ════════════════════════════════════════════════════════════════
 # EXTENSIONS
@@ -445,6 +446,21 @@ def inject_globals():
 # ════════════════════════════════════════════════════════════════
 # MIDDLEWARE & ERROR HANDLERS
 # ════════════════════════════════════════════════════════════════
+
+@app.before_request
+def _check_session_timeout():
+    """Déconnecte automatiquement après 5 min d'inactivité."""
+    if current_user.is_authenticated:
+        last_active = session.get('last_active')
+        now = datetime.now().timestamp()
+        if last_active and now - last_active > 300:  # 5 min
+            session.clear()
+            logout_user()
+            flash("Session expirée. Veuillez vous reconnecter.", "error")
+            return redirect(url_for('login'))
+        session['last_active'] = now
+        session.permanent = True
+
 
 @app.before_request
 def _log_req_start():
