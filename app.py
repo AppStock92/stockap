@@ -122,10 +122,13 @@ if os.environ.get('FLASK_ENV') == 'production':
         strict_transport_security_max_age=31536000,
         content_security_policy={
             'default-src': "'self'",
-            'script-src':  ["'self'", 'cdnjs.cloudflare.com'],
+            'script-src':  ["'self'", 'cdnjs.cloudflare.com',
+                            'cdn.jsdelivr.net', "'unsafe-inline'"],
             'style-src':   ["'self'", "'unsafe-inline'",
-                            'cdnjs.cloudflare.com', 'fonts.googleapis.com'],
-            'font-src':    ['fonts.gstatic.com'],
+                            'cdnjs.cloudflare.com', 'cdn.jsdelivr.net',
+                            'fonts.googleapis.com'],
+            'font-src':    ['fonts.gstatic.com', 'cdn.jsdelivr.net',
+                            'cdnjs.cloudflare.com'],
             'img-src':     ["'self'", 'data:'],
         }
     )
