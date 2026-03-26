@@ -105,6 +105,12 @@ document.addEventListener('DOMContentLoaded', function() {
           <label class="form-label">Seuil</label>
           <input type="number" name="seuil" class="form-control" placeholder="5" min="0" value="5">
         </div>
+        <div class="col-12 col-md-4">
+          <label class="form-label">Code-barres <span style="color:var(--muted);font-weight:400">(optionnel)</span></label>
+          <input type="text" name="code_barres" class="form-control"
+                 placeholder="Ex : 3017620422003"
+                 inputmode="numeric" autocomplete="off">
+        </div>
         <div class="col-6 col-md-2">
           <label class="form-label">Catégorie</label>
           <select name="categorie_id" class="form-select">

@@ -264,7 +264,10 @@ function onCodeDetecte(code) {
   setStatus('✓ ' + code);
   if (navigator.vibrate) navigator.vibrate([80, 40, 80]);
 
-  const match = PRODUITS.find(p => String(p.id) === code || p.nom.toLowerCase() === code.toLowerCase());
+  // Chercher par code_barres EN PREMIER, puis par nom, puis par ID
+  const match = PRODUITS.find(p => p.code_barres && p.code_barres === code)
+             || PRODUITS.find(p => String(p.id) === code)
+             || PRODUITS.find(p => p.nom.toLowerCase() === code.toLowerCase());
   if (match) {
     document.getElementById('produitSelect').value = match.id;
     onProduitChange();

@@ -218,6 +218,7 @@ class Produit(db.Model):
     __tablename__ = 'produits'
     id             = db.Column(db.Integer, primary_key=True)
     nom            = db.Column(db.String(200), nullable=False)
+    code_barres    = db.Column(db.String(100), nullable=True)
     quantite       = db.Column(db.Integer, nullable=False, default=0)
     prix           = db.Column(db.Float,   nullable=False, default=0.0)
     seuil          = db.Column(db.Integer, nullable=False, default=5)
@@ -520,6 +521,7 @@ def init_db():
         "ALTER TABLE categories    ADD COLUMN entreprise_id      INTEGER      DEFAULT NULL",
         "ALTER TABLE fournisseurs  ADD COLUMN entreprise_id      INTEGER      DEFAULT NULL",
         "ALTER TABLE mouvements    ADD COLUMN entreprise_id      INTEGER      DEFAULT NULL",
+        "ALTER TABLE produits      ADD COLUMN code_barres       VARCHAR(100) DEFAULT NULL",
         "ALTER TABLE entreprises   ADD COLUMN stripe_customer_id VARCHAR(100) DEFAULT NULL",
         "ALTER TABLE entreprises   ADD COLUMN stripe_sub_id      VARCHAR(100) DEFAULT NULL",
         "ALTER TABLE entreprises   ADD COLUMN stripe_status      VARCHAR(30)  DEFAULT NULL",
@@ -657,6 +659,7 @@ def index():
 @manager_ou_admin
 def add():
     nom            = request.form.get('nom', '').strip()
+    code_barres    = request.form.get('code_barres', '').strip() or None
     quantite       = request.form.get('quantite', '')
     prix           = request.form.get('prix', '')
     seuil          = request.form.get('seuil', '5')
@@ -675,7 +678,8 @@ def add():
     if not ok:
         flash(msg, "error")
         return redirect(url_for('index'))
-    db.session.add(Produit(nom=nom, quantite=quantite, prix=prix, seuil=seuil,
+    db.session.add(Produit(nom=nom, code_barres=code_barres,
+                           quantite=quantite, prix=prix, seuil=seuil,
                            categorie_id=categorie_id, fournisseur_id=fournisseur_id,
                            entreprise_id=current_user.entreprise_id))
     db.session.commit()
@@ -693,6 +697,7 @@ def update(id):
     if request.method == 'POST':
         try:
             p.nom            = request.form.get('nom', '').strip()
+            p.code_barres    = request.form.get('code_barres', '').strip() or None
             p.quantite       = int(request.form.get('quantite', 0))
             p.prix           = float(request.form.get('prix', 0))
             p.seuil          = int(request.form.get('seuil', 5))
@@ -864,8 +869,9 @@ def edit_fournisseur(id):
 def scanner():
     eid = current_user.entreprise_id
     produits = Produit.query.filter_by(entreprise_id=eid).order_by(Produit.nom).all()
-    produits_json = json.dumps([{'id':p.id,'nom':p.nom,'quantite':p.quantite,
-                                  'seuil':p.seuil,'prix':p.prix} for p in produits], ensure_ascii=False)
+    produits_json = json.dumps([{'id':p.id,'nom':p.nom,'code_barres':p.code_barres,
+                                  'quantite':p.quantite,'seuil':p.seuil,'prix':p.prix}
+                                 for p in produits], ensure_ascii=False)
     return render_template('scanner.html', produits_json=produits_json)
 
 @app.route('/scanner/mouvement', methods=['POST'])
