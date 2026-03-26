@@ -1502,7 +1502,12 @@ def statut_onboarding():
 # LANCEMENT
 # ════════════════════════════════════════════════════════════════
 
-if __name__ == '__main__':
-    with app.app_context():
+# Exécuter init_db au démarrage (fonctionne avec gunicorn ET python app.py)
+with app.app_context():
+    try:
         init_db()
+    except Exception as e:
+        print(f"init_db error: {e}")
+
+if __name__ == '__main__':
     app.run(debug=os.environ.get('FLASK_ENV') != 'production')
