@@ -281,17 +281,28 @@ def load_user(user_id):
 PLANS = {
     'free': {
         'nom': 'Gratuit', 'prix': 0, 'affichage': '0 €/mois',
-        'features': ['Produits illimités', 'Utilisateurs illimités', 'Export CSV & PDF',
+        'features': ['50 produits max', '1 utilisateur', 'Export CSV',
                      'Dashboard & graphiques', 'Scanner code-barres'],
         'badge': None, 'price_id': None,
         'limites': {
-            'produits': 9999, 'utilisateurs': 9999, 'export_pdf': True,
-            'alertes_email': True, 'categories': 9999, 'fournisseurs': 9999,
-            'historique_jours': 9999,
+            'produits': 50, 'utilisateurs': 1, 'export_pdf': False,
+            'alertes_email': False, 'categories': 10, 'fournisseurs': 5,
+            'historique_jours': 30,
+        }
+    },
+    'starter': {
+        'nom': 'Starter', 'prix': 2, 'affichage': '2 €/mois',
+        'features': ['200 produits', '3 utilisateurs', 'Export CSV & PDF',
+                     'Alertes email', 'Support email'],
+        'badge': None, 'price_id': os.environ.get('STRIPE_PRICE_ID_STARTER', ''),
+        'limites': {
+            'produits': 200, 'utilisateurs': 3, 'export_pdf': True,
+            'alertes_email': True, 'categories': 50, 'fournisseurs': 30,
+            'historique_jours': 90,
         }
     },
     'pro': {
-        'nom': 'Pro', 'prix': 9, 'affichage': '9 €/mois',
+        'nom': 'Pro', 'prix': 13, 'affichage': '13 €/mois',
         'features': ['Produits illimités', 'Équipe illimitée', 'Export PDF',
                      'Alertes email', 'Historique complet', 'Support prioritaire'],
         'badge': 'Populaire', 'price_id': os.environ.get('STRIPE_PRICE_ID_PRO', ''),
