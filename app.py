@@ -173,6 +173,121 @@ class Notification(db.Model):
         }
 
 
+class Abonnement(db.Model):
+    __tablename__ = 'abonnements'
+    id           = db.Column(db.Integer, primary_key=True)
+    user_id      = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=False, unique=True)
+    plan         = db.Column(db.String(20), nullable=False, default='free')
+    statut       = db.Column(db.String(20), nullable=False, default='actif')
+    date_debut   = db.Column(db.DateTime, nullable=True)
+    date_fin     = db.Column(db.DateTime, nullable=True)
+    cree_le      = db.Column(db.DateTime, nullable=False, default=datetime.now)
+    renouvele_le = db.Column(db.DateTime, nullable=True)
+
+    utilisateur  = db.relationship('Utilisateur', back_populates='abonnement')
+
+    def est_actif(self):
+        if self.plan == 'free':
+            return True
+        if self.statut == 'expire':
+            return False
+        if self.date_fin and datetime.now() > self.date_fin:
+            self.statut = 'expire'
+            try: db.session.commit()
+            except: db.session.rollback()
+            return False
+        return self.statut == 'actif'
+
+    def jours_restants(self):
+        if not self.date_fin or self.plan == 'free':
+            return None
+        return max(0, (self.date_fin - datetime.now()).days)
+
+    def renouveler(self, plan=None):
+        from datetime import timedelta
+        if plan: self.plan = plan
+        duree = 30 if self.plan == 'monthly' else 365
+        self.date_debut   = datetime.now()
+        self.date_fin     = datetime.now() + timedelta(days=duree)
+        self.statut       = 'actif'
+        self.renouvele_le = datetime.now()
+        db.session.commit()
+
+    def to_dict(self):
+        return {
+            'plan': self.plan, 'statut': self.statut,
+            'est_actif': self.est_actif(),
+            'date_fin': self.date_fin.strftime('%d/%m/%Y') if self.date_fin else None,
+            'jours_restants': self.jours_restants(),
+        }
+
+
+# Limites par plan
+LIMITES_AB = {
+    'free':    {'produits': 10,   'utilisateurs': 1,    'export_pdf': False, 'alertes': False},
+    'monthly': {'produits': 9999, 'utilisateurs': 9999, 'export_pdf': True,  'alertes': True},
+    'yearly':  {'produits': 9999, 'utilisateurs': 9999, 'export_pdf': True,  'alertes': True},
+}
+
+PRIX_AB = {
+    'monthly': {'prix': 2,  'label': '2 €/mois', 'duree': 30},
+    'yearly':  {'prix': 13, 'label': '13 €/an',  'duree': 365},
+}
+
+
+def get_abonnement(user=None):
+    if user is None:
+        user = current_user
+    if not hasattr(user, 'is_authenticated') or not user.is_authenticated:
+        return None
+    if user.abonnement:
+        return user.abonnement
+    ab = Abonnement(user_id=user.id, plan='free', statut='actif')
+    db.session.add(ab)
+    try: db.session.commit()
+    except: db.session.rollback()
+    return ab
+
+
+def abonnement_actif(user=None):
+    ab = get_abonnement(user)
+    return ab.est_actif() if ab else False
+
+
+def limite_produits_ab(user=None):
+    ab = get_abonnement(user)
+    plan = ab.plan if ab and ab.est_actif() else 'free'
+    return LIMITES_AB.get(plan, LIMITES_AB['free'])['produits']
+
+
+def peut_faire_ab(feature, user=None):
+    ab = get_abonnement(user)
+    plan = ab.plan if ab and ab.est_actif() else 'free'
+    return LIMITES_AB.get(plan, LIMITES_AB['free']).get(feature, False)
+
+
+def verifier_expiration_batch():
+    from sqlalchemy import and_
+    expires = Abonnement.query.filter(
+        Abonnement.statut == 'actif',
+        Abonnement.plan != 'free',
+        Abonnement.date_fin < datetime.now()
+    ).all()
+    for ab in expires:
+        ab.statut = 'expire'
+        if ab.utilisateur and ab.utilisateur.entreprise_id:
+            creer_notification(
+                entreprise_id=ab.utilisateur.entreprise_id,
+                type='alerte',
+                titre='Abonnement expiré',
+                message=f'Votre plan {ab.plan.upper()} a expiré. Renouvelez pour continuer.',
+                lien='/upgrade'
+            )
+    if expires:
+        db.session.commit()
+    return len(expires)
+
+
 class Entreprise(db.Model):
     __tablename__ = 'entreprises'
     id             = db.Column(db.Integer, primary_key=True)
@@ -264,6 +379,8 @@ class Utilisateur(db.Model, UserMixin):
     token_reset          = db.Column(db.String(100), nullable=True)
     token_reset_exp      = db.Column(db.DateTime,    nullable=True)
     onboarding_complete  = db.Column(db.Boolean,     default=False)
+
+    abonnement = db.relationship('Abonnement', back_populates='utilisateur', uselist=False, cascade='all, delete-orphan')
 
     def set_password(self, pwd):
         self.password = generate_password_hash(pwd)
@@ -433,6 +550,11 @@ def inject_globals():
         current_user.is_authenticated and
         not getattr(current_user, 'onboarding_complete', True)
     )
+    # Abonnement utilisateur
+    ab = get_abonnement() if current_user.is_authenticated else None
+    plan_ab = ab.plan if ab else 'free'
+    ab_actif = ab.est_actif() if ab else False
+
     return {
         'devise': devise, 'entreprise': entreprise, 'role': role,
         'est_admin':   role == 'admin',
@@ -442,6 +564,11 @@ def inject_globals():
         'plan_actuel': plan_actuel,
         'est_pro': est_pro,
         'limites': limites,
+        'abonnement': ab,
+        'plan_ab': plan_ab,
+        'ab_actif': ab_actif,
+        'PRIX_AB': PRIX_AB,
+        'LIMITES_AB': LIMITES_AB,
     }
 
 # ════════════════════════════════════════════════════════════════
@@ -532,6 +659,24 @@ def init_db():
             db.session.commit()
         except Exception:
             db.session.rollback()
+
+    # Table abonnements
+    try:
+        db.session.execute(db.text("""
+            CREATE TABLE IF NOT EXISTS abonnements (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id      INTEGER NOT NULL UNIQUE,
+                plan         VARCHAR(20) NOT NULL DEFAULT 'free',
+                statut       VARCHAR(20) NOT NULL DEFAULT 'actif',
+                date_debut   DATETIME,
+                date_fin     DATETIME,
+                cree_le      DATETIME DEFAULT CURRENT_TIMESTAMP,
+                renouvele_le DATETIME
+            )
+        """))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
 
     # Table notifications
     try:
@@ -674,6 +819,16 @@ def add():
         flash("Quantité, prix et seuil doivent être des nombres.", "error")
         return redirect(url_for('index'))
     nb = Produit.query.filter_by(entreprise_id=current_user.entreprise_id).count()
+    # Vérifier limite abonnement utilisateur
+    lim_ab = limite_produits_ab()
+    if nb >= lim_ab:
+        ab = get_abonnement()
+        plan = ab.plan if ab else 'free'
+        if plan == 'free':
+            flash(f"Limite atteinte ({nb}/{lim_ab} produits). Passez au plan Monthly ou Yearly pour continuer.", "error")
+        else:
+            flash(f"Limite atteinte ({nb}/{lim_ab} produits).", "error")
+        return redirect(url_for('index'))
     ok, msg = verifier_limite('produits', nb)
     if not ok:
         flash(msg, "error")
@@ -1525,6 +1680,76 @@ def update_code_barres(id):
     p.code_barres = request.form.get('code_barres', '').strip() or None
     db.session.commit()
     return {'ok': True, 'nom': p.nom, 'code_barres': p.code_barres}
+
+
+# ════════════════════════════════════════════════════════════════
+# ABONNEMENTS UTILISATEUR — upgrade / gestion
+# ════════════════════════════════════════════════════════════════
+
+@app.route('/upgrade')
+@login_required
+def upgrade_page():
+    """Page de choix d'abonnement."""
+    ab = get_abonnement()
+    return render_template('upgrade.html', ab=ab, PRIX_AB=PRIX_AB, LIMITES_AB=LIMITES_AB)
+
+
+@app.route('/upgrade/<plan>', methods=['POST'])
+@login_required
+def upgrade_plan(plan):
+    """Passe l'utilisateur au plan choisi (monthly ou yearly).
+    En production : intégrer Stripe avant de changer le plan.
+    """
+    if plan not in ('monthly', 'yearly'):
+        flash("Plan invalide.", "error")
+        return redirect(url_for('upgrade_page'))
+
+    from datetime import timedelta
+    ab = get_abonnement()
+    if not ab:
+        ab = Abonnement(user_id=current_user.id)
+        db.session.add(ab)
+
+    duree = PRIX_AB[plan]['duree']
+    ab.plan        = plan
+    ab.statut      = 'actif'
+    ab.date_debut  = datetime.now()
+    ab.date_fin    = datetime.now() + timedelta(days=duree)
+    ab.renouvele_le= datetime.now()
+    db.session.commit()
+
+    label = PRIX_AB[plan]['label']
+    flash(f"Abonnement {plan.upper()} activé ({label}) ! Merci 🎉", "success")
+    creer_notification(
+        entreprise_id=current_user.entreprise_id,
+        type='succes',
+        titre=f'Plan {plan.upper()} activé',
+        message="Votre abonnement " + plan.upper() + " (" + label + ") est actif.",
+        lien='/upgrade'
+    )
+    return redirect(url_for('upgrade_page'))
+
+
+@app.route('/upgrade/annuler', methods=['POST'])
+@login_required
+def annuler_abonnement():
+    """Repasse l'utilisateur en Free."""
+    ab = get_abonnement()
+    if ab and ab.plan != 'free':
+        ab.plan     = 'free'
+        ab.statut   = 'actif'
+        ab.date_fin = None
+        db.session.commit()
+        flash("Abonnement annulé. Vous êtes repassé au plan gratuit.", "success")
+    return redirect(url_for('upgrade_page'))
+
+
+@app.route('/abonnement/statut')
+@login_required
+def statut_abonnement_api():
+    """API JSON — statut abonnement de l'utilisateur connecté."""
+    ab = get_abonnement()
+    return ab.to_dict() if ab else {'plan': 'free', 'statut': 'actif', 'est_actif': True}
 
 # ════════════════════════════════════════════════════════════════
 # NOTIFICATIONS
