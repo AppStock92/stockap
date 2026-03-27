@@ -250,17 +250,26 @@ def get_abonnement(user=None):
 
 
 def abonnement_actif(user=None):
+    if user is None: user = current_user
+    if getattr(user, 'is_admin', False):
+        return True  # Admin toujours actif
     ab = get_abonnement(user)
     return ab.est_actif() if ab else False
 
 
 def limite_produits_ab(user=None):
+    if user is None: user = current_user
+    if getattr(user, 'is_admin', False):
+        return 999999  # Admin illimité
     ab = get_abonnement(user)
     plan = ab.plan if ab and ab.est_actif() else 'free'
     return LIMITES_AB.get(plan, LIMITES_AB['free'])['produits']
 
 
 def peut_faire_ab(feature, user=None):
+    if user is None: user = current_user
+    if getattr(user, 'is_admin', False):
+        return True  # Admin peut tout faire
     ab = get_abonnement(user)
     plan = ab.plan if ab and ab.est_actif() else 'free'
     return LIMITES_AB.get(plan, LIMITES_AB['free']).get(feature, False)
@@ -494,6 +503,18 @@ def role_requis(*roles):
 def admin_requis(f):    return role_requis('admin')(f)
 def manager_ou_admin(f): return role_requis('admin', 'manager')(f)
 
+def superadmin_requis(f):
+    """Décorateur : restreint l'accès aux utilisateurs is_admin=True."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not current_user.is_authenticated:
+            return redirect(url_for('login'))
+        if not getattr(current_user, 'is_admin', False):
+            flash("Accès réservé aux super-administrateurs.", "error")
+            return redirect(url_for('index'))
+        return f(*args, **kwargs)
+    return decorated
+
 # ════════════════════════════════════════════════════════════════
 # HELPERS
 # ════════════════════════════════════════════════════════════════
@@ -554,6 +575,7 @@ def inject_globals():
     ab = get_abonnement() if current_user.is_authenticated else None
     plan_ab = ab.plan if ab else 'free'
     ab_actif = ab.est_actif() if ab else False
+    is_superadmin = getattr(current_user, 'is_admin', False) if current_user.is_authenticated else False
 
     return {
         'devise': devise, 'entreprise': entreprise, 'role': role,
@@ -569,6 +591,7 @@ def inject_globals():
         'ab_actif': ab_actif,
         'PRIX_AB': PRIX_AB,
         'LIMITES_AB': LIMITES_AB,
+        'is_superadmin': is_superadmin,
     }
 
 # ════════════════════════════════════════════════════════════════
@@ -652,6 +675,7 @@ def init_db():
         "ALTER TABLE entreprises   ADD COLUMN stripe_customer_id VARCHAR(100) DEFAULT NULL",
         "ALTER TABLE entreprises   ADD COLUMN stripe_sub_id      VARCHAR(100) DEFAULT NULL",
         "ALTER TABLE entreprises   ADD COLUMN stripe_status      VARCHAR(30)  DEFAULT NULL",
+        "ALTER TABLE utilisateurs  ADD COLUMN is_admin           BOOLEAN      DEFAULT 0",
     ]
     for sql in migrations:
         try:
@@ -709,7 +733,8 @@ def init_db():
     if not Utilisateur.query.filter_by(username='admin').first():
         admin = Utilisateur(username='admin', role='admin',
                             entreprise_id=entreprise.id,
-                            email_verifie=True, onboarding_complete=True)
+                            email_verifie=True, onboarding_complete=True,
+                            is_admin=True)
         admin.set_password('admin123')
         db.session.add(admin)
 
@@ -819,20 +844,21 @@ def add():
         flash("Quantité, prix et seuil doivent être des nombres.", "error")
         return redirect(url_for('index'))
     nb = Produit.query.filter_by(entreprise_id=current_user.entreprise_id).count()
-    # Vérifier limite abonnement utilisateur
-    lim_ab = limite_produits_ab()
-    if nb >= lim_ab:
-        ab = get_abonnement()
-        plan = ab.plan if ab else 'free'
-        if plan == 'free':
-            flash(f"Limite atteinte ({nb}/{lim_ab} produits). Passez au plan Monthly ou Yearly pour continuer.", "error")
-        else:
-            flash(f"Limite atteinte ({nb}/{lim_ab} produits).", "error")
-        return redirect(url_for('index'))
-    ok, msg = verifier_limite('produits', nb)
-    if not ok:
-        flash(msg, "error")
-        return redirect(url_for('index'))
+    # Admin : accès illimité sans vérification
+    if not getattr(current_user, 'is_admin', False):
+        lim_ab = limite_produits_ab()
+        if nb >= lim_ab:
+            ab = get_abonnement()
+            plan = ab.plan if ab else 'free'
+            if plan == 'free':
+                flash(f"Limite atteinte ({nb}/{lim_ab} produits). Passez au plan Monthly ou Yearly.", "error")
+            else:
+                flash(f"Limite atteinte ({nb}/{lim_ab} produits).", "error")
+            return redirect(url_for('index'))
+        ok, msg = verifier_limite('produits', nb)
+        if not ok:
+            flash(msg, "error")
+            return redirect(url_for('index'))
     db.session.add(Produit(nom=nom, code_barres=code_barres,
                            quantite=quantite, prix=prix, seuil=seuil,
                            categorie_id=categorie_id, fournisseur_id=fournisseur_id,
@@ -1681,6 +1707,65 @@ def update_code_barres(id):
     db.session.commit()
     return {'ok': True, 'nom': p.nom, 'code_barres': p.code_barres}
 
+
+
+# ════════════════════════════════════════════════════════════════
+# GESTION DES RÔLES ADMIN
+# ════════════════════════════════════════════════════════════════
+
+@app.route('/admin/promouvoir/<int:id>', methods=['POST'])
+@login_required
+@superadmin_requis
+def promouvoir_admin(id):
+    """Promouvoit un utilisateur en super-admin."""
+    u = Utilisateur.query.filter_by(
+        id=id, entreprise_id=current_user.entreprise_id
+    ).first_or_404()
+    if u.id == current_user.id:
+        flash("Vous êtes déjà super-admin.", "error")
+        return redirect(url_for('utilisateurs'))
+    u.is_admin = True
+    u.role     = 'admin'
+    db.session.commit()
+    flash(f"« {u.username} » est maintenant super-admin.", "success")
+    creer_notification(
+        entreprise_id=current_user.entreprise_id,
+        type='info',
+        titre='Promotion super-admin',
+        message=f'{u.username} a été promu super-administrateur.',
+    )
+    return redirect(url_for('utilisateurs'))
+
+
+@app.route('/admin/retrograder/<int:id>', methods=['POST'])
+@login_required
+@superadmin_requis
+def retrograder_admin(id):
+    """Retire les droits super-admin d'un utilisateur."""
+    u = Utilisateur.query.filter_by(
+        id=id, entreprise_id=current_user.entreprise_id
+    ).first_or_404()
+    if u.id == current_user.id:
+        flash("Vous ne pouvez pas vous rétrograder vous-même.", "error")
+        return redirect(url_for('utilisateurs'))
+    u.is_admin = False
+    db.session.commit()
+    flash(f"Droits admin retirés à « {u.username} ».", "success")
+    return redirect(url_for('utilisateurs'))
+
+
+@app.route('/admin/utilisateurs')
+@login_required
+@superadmin_requis
+def admin_utilisateurs():
+    """Vue admin : tous les utilisateurs de toutes les entreprises."""
+    tous = Utilisateur.query.order_by(Utilisateur.id.desc()).all()
+    return {'utilisateurs': [
+        {'id': u.id, 'username': u.username, 'email': u.email,
+         'role': u.role, 'is_admin': u.is_admin,
+         'entreprise_id': u.entreprise_id}
+        for u in tous
+    ]}
 
 # ════════════════════════════════════════════════════════════════
 # ABONNEMENTS UTILISATEUR — upgrade / gestion

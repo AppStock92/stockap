@@ -428,7 +428,18 @@
       <div class="sb-avatar">{{ current_user.username[0] | upper }}</div>
       <div style="min-width:0">
         <div class="sb-username">{{ current_user.username }}</div>
-        <div class="sb-role">{{ current_user.role }}</div>
+        <div class="sb-role">
+        {% if is_superadmin %}
+          <span style="color:#EF9F27;font-weight:500">★ Super-Admin</span>
+        {% else %}
+          {{ current_user.role }}
+          {% if abonnement %}
+            · <span style="color:{% if abonnement.plan=='free' %}var(--muted){% else %}#5DCAA5{% endif %}">
+              {{ abonnement.plan }}
+            </span>
+          {% endif %}
+        {% endif %}
+      </div>
       </div>
     </div>
     <div class="sb-actions">
