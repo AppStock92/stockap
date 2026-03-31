@@ -916,21 +916,21 @@ def err_429(e):
 def init_db():
     db.create_all()
 
-    # ── Toutes les migrations AVANT toute requête ORM ──
-    # SQLite : exécutées une par une, erreurs ignorées silencieusement
+    # ── Migrations AVANT toute requête ORM ──
+    # Compatible SQLite ET PostgreSQL — erreurs ignorées silencieusement
     migrations_sql = [
         "ALTER TABLE utilisateurs  ADD COLUMN devise             VARCHAR(10)  DEFAULT '€'",
         "ALTER TABLE utilisateurs  ADD COLUMN role               VARCHAR(20)  DEFAULT 'admin'",
         "ALTER TABLE utilisateurs  ADD COLUMN entreprise_id      INTEGER      DEFAULT NULL",
-        "ALTER TABLE utilisateurs  ADD COLUMN email_verifie      BOOLEAN      DEFAULT 0",
-        "ALTER TABLE utilisateurs  ADD COLUMN is_active          BOOLEAN      DEFAULT 1",
-        "ALTER TABLE utilisateurs  ADD COLUMN validation_admin   BOOLEAN      DEFAULT 1",
-        "ALTER TABLE utilisateurs  ADD COLUMN cree_le            DATETIME     DEFAULT NULL",
+        "ALTER TABLE utilisateurs  ADD COLUMN email_verifie      BOOLEAN      DEFAULT FALSE",
+        "ALTER TABLE utilisateurs  ADD COLUMN is_active          BOOLEAN      DEFAULT TRUE",
+        "ALTER TABLE utilisateurs  ADD COLUMN validation_admin   BOOLEAN      DEFAULT TRUE",
+        "ALTER TABLE utilisateurs  ADD COLUMN is_admin           BOOLEAN      DEFAULT FALSE",
+        "ALTER TABLE utilisateurs  ADD COLUMN cree_le            TIMESTAMP    DEFAULT NULL",
         "ALTER TABLE utilisateurs  ADD COLUMN token_verification VARCHAR(100) DEFAULT NULL",
         "ALTER TABLE utilisateurs  ADD COLUMN token_reset        VARCHAR(100) DEFAULT NULL",
-        "ALTER TABLE utilisateurs  ADD COLUMN token_reset_exp    DATETIME     DEFAULT NULL",
-        "ALTER TABLE utilisateurs  ADD COLUMN onboarding_complete BOOLEAN     DEFAULT 0",
-        "ALTER TABLE utilisateurs  ADD COLUMN is_admin          BOOLEAN      DEFAULT 0",
+        "ALTER TABLE utilisateurs  ADD COLUMN token_reset_exp    TIMESTAMP    DEFAULT NULL",
+        "ALTER TABLE utilisateurs  ADD COLUMN onboarding_complete BOOLEAN     DEFAULT FALSE",
         "ALTER TABLE produits      ADD COLUMN entreprise_id      INTEGER      DEFAULT NULL",
         "ALTER TABLE produits      ADD COLUMN code_barres        VARCHAR(100) DEFAULT NULL",
         "ALTER TABLE categories    ADD COLUMN entreprise_id      INTEGER      DEFAULT NULL",
@@ -939,7 +939,7 @@ def init_db():
         "ALTER TABLE entreprises   ADD COLUMN stripe_customer_id VARCHAR(100) DEFAULT NULL",
         "ALTER TABLE entreprises   ADD COLUMN stripe_sub_id      VARCHAR(100) DEFAULT NULL",
         "ALTER TABLE entreprises   ADD COLUMN stripe_status      VARCHAR(30)  DEFAULT NULL",
-        "ALTER TABLE utilisateurs  ADD COLUMN is_admin           BOOLEAN      DEFAULT 0",
+        "ALTER TABLE ventes        ADD COLUMN email_envoye       BOOLEAN      DEFAULT FALSE",
     ]
     for sql in migrations_sql:
         try:
@@ -948,37 +948,11 @@ def init_db():
         except Exception:
             db.session.rollback()
 
-    # Tables créées si elles n'existent pas
-    for create_sql in [
-        """CREATE TABLE IF NOT EXISTS notifications (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            utilisateur_id INTEGER NOT NULL, entreprise_id INTEGER NOT NULL,
-            type VARCHAR(30) NOT NULL, titre VARCHAR(200) NOT NULL,
-            message TEXT NOT NULL, lien VARCHAR(200),
-            lue BOOLEAN DEFAULT 0, cree_le DATETIME DEFAULT CURRENT_TIMESTAMP)""",
-        """CREATE TABLE IF NOT EXISTS abonnements (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL UNIQUE, plan VARCHAR(20) NOT NULL DEFAULT 'free',
-            statut VARCHAR(20) NOT NULL DEFAULT 'actif',
-            date_debut DATETIME, date_fin DATETIME,
-            cree_le DATETIME DEFAULT CURRENT_TIMESTAMP, renouvele_le DATETIME)""",
-        """CREATE TABLE IF NOT EXISTS codes_invitation (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            code VARCHAR(50) NOT NULL UNIQUE, cree_par INTEGER,
-            utilise BOOLEAN DEFAULT 0, utilise_par INTEGER,
-            max_usages INTEGER DEFAULT 1, nb_usages INTEGER DEFAULT 0,
-            expire_le DATETIME, cree_le DATETIME DEFAULT CURRENT_TIMESTAMP,
-            domaines_autorises VARCHAR(500))""",
-        """CREATE TABLE IF NOT EXISTS recus (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            numero VARCHAR(20) NOT NULL UNIQUE,
-            entreprise_id INTEGER NOT NULL, cree_par INTEGER NOT NULL,
-            client_nom VARCHAR(200), client_tel VARCHAR(30),
-            client_email VARCHAR(200), lignes_json TEXT NOT NULL,
-            total REAL NOT NULL DEFAULT 0, note TEXT,
-            whatsapp_envoye BOOLEAN DEFAULT 0, email_envoye BOOLEAN DEFAULT 0,
-            cree_le DATETIME DEFAULT CURRENT_TIMESTAMP)""",
-    ]:
+    # Tables supplémentaires — db.create_all() les crée déjà via les modèles
+    # Ces CREATE TABLE IF NOT EXISTS sont pour les tables sans modèle SQLAlchemy explicite
+    # PostgreSQL et SQLite ont la même syntaxe pour IF NOT EXISTS
+    extra_tables = []  # Toutes les tables sont gérées par db.create_all()
+    for create_sql in extra_tables:
         try:
             db.session.execute(db.text(create_sql))
             db.session.commit()
