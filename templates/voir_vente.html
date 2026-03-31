@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block title %}Vente {{ vente.numero }} — StockApp{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <span class="page-label mb-0">Vente {{ vente.numero }}</span>
+  <a href="{{ url_for('liste_ventes') }}" class="btn btn-outline-secondary btn-sm">← Retour</a>
+</div>
+
+<div class="row g-4">
+
+  <!-- Détail vente -->
+  <div class="col-12 col-md-7">
+    <div class="card p-4">
+      <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+          <div style="font-size:20px;font-weight:700;font-family:var(--mono)">{{ vente.numero }}</div>
+          <div style="font-size:13px;color:var(--muted)">{{ vente.cree_le.strftime('%d/%m/%Y à %H:%M') }}</div>
+          <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+            <span style="font-size:11px;padding:3px 10px;border-radius:20px;font-family:var(--mono);
+                         background:{% if vente.statut=='validee' %}#EFF8F3{% else %}#FEF0EE{% endif %};
+                         color:{% if vente.statut=='validee' %}#1E7E4A{% else %}#C0392B{% endif %}">
+              {% if vente.statut == 'validee' %}✓ Validée{% else %}✗ Annulée{% endif %}
+            </span>
+            <span style="font-size:11px;padding:3px 10px;border-radius:20px;
+                         background:var(--bs-body-bg);color:var(--muted);border:.5px solid var(--bs-border-color)">
+              {% if vente.mode_paiement == 'especes' %}💵 Espèces
+              {% elif vente.mode_paiement == 'carte' %}💳 Carte
+              {% elif vente.mode_paiement == 'virement' %}🏦 Virement
+              {% else %}📄 Chèque{% endif %}
+            </span>
+          </div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:28px;font-weight:700;color:#1D9E75">
+            {{ vente.total_final | round(2) }} {{ devise }}
+          </div>
+          {% if vente.remise > 0 %}
+          <div style="font-size:12px;color:var(--muted)">
+            Remise {{ vente.remise }}% — Sous-total {{ vente.total | round(2) }} {{ devise }}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if vente.client_nom or vente.client_tel or vente.client_email %}
+      <div style="background:var(--bs-body-bg);border-radius:8px;padding:12px;margin-bottom:16px">
+        <div class="card-header-label mb-2">Client</div>
+        {% if vente.client_nom %}<div style="font-weight:500;font-size:14px">{{ vente.client_nom }}</div>{% endif %}
+        {% if vente.client_tel %}<div style="color:var(--muted);font-size:13px">📱 {{ vente.client_tel }}</div>{% endif %}
+        {% if vente.client_email %}<div style="color:var(--muted);font-size:13px">📧 {{ vente.client_email }}</div>{% endif %}
+      </div>
+      {% endif %}
+
+      <table class="table" style="font-size:14px">
+        <thead>
+          <tr>
+            <th>Produit</th>
+            <th style="text-align:center">Qté</th>
+            <th style="text-align:right">Prix unit.</th>
+            <th style="text-align:right">Sous-total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for l in vente.lignes %}
+          <tr>
+            <td style="font-weight:500">{{ l.produit_nom }}</td>
+            <td style="text-align:center;font-family:var(--mono)">{{ l.quantite }}</td>
+            <td style="text-align:right;font-family:var(--mono)">{{ l.prix_unitaire | round(2) }} {{ devise }}</td>
+            <td style="text-align:right;font-family:var(--mono);font-weight:600">{{ l.sous_total | round(2) }} {{ devise }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          {% if vente.remise > 0 %}
+          <tr>
+            <td colspan="3" style="text-align:right;color:var(--muted)">Sous-total</td>
+            <td style="text-align:right;font-family:var(--mono)">{{ vente.total | round(2) }} {{ devise }}</td>
+          </tr>
+          <tr>
+            <td colspan="3" style="text-align:right;color:#1D9E75">Remise {{ vente.remise }}%</td>
+            <td style="text-align:right;font-family:var(--mono);color:#1D9E75">-{{ (vente.total * vente.remise / 100) | round(2) }} {{ devise }}</td>
+          </tr>
+          {% endif %}
+          <tr>
+            <td colspan="3" style="text-align:right;font-weight:700;font-size:16px">TOTAL</td>
+            <td style="text-align:right;font-weight:700;font-size:20px;font-family:var(--mono);color:#1D9E75">
+              {{ vente.total_final | round(2) }} {{ devise }}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+
+      {% if vente.note %}
+      <div style="font-size:13px;color:var(--muted);font-style:italic;margin-top:8px">📝 {{ vente.note }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="col-12 col-md-5">
+
+    <!-- WhatsApp -->
+    <div class="card p-4 mb-3">
+      <div class="card-header-label mb-3">Reçu WhatsApp</div>
+      <div class="d-flex align-items-center gap-2 mb-3">
+        <span style="font-size:20px">📱</span>
+        <div>
+          <div style="font-size:14px">WhatsApp</div>
+          <div style="font-size:12px;color:var(--muted)">
+            {% if vente.client_tel %}{{ vente.client_tel }}{% else %}Pas de numéro{% endif %}
+          </div>
+        </div>
+        <span class="ms-auto" style="font-size:11px;padding:2px 8px;border-radius:10px;
+              background:{% if vente.whatsapp_envoye %}#EFF8F3{% else %}var(--bs-body-bg){% endif %};
+              color:{% if vente.whatsapp_envoye %}#1E7E4A{% else %}var(--muted){% endif %}">
+          {% if vente.whatsapp_envoye %}✓ Envoyé{% else %}Non envoyé{% endif %}
+        </span>
+      </div>
+      {% if vente.client_tel and vente.statut == 'validee' %}
+      <form method="POST" action="{{ url_for('renvoyer_whatsapp_vente', id=vente.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-brand w-100">
+          📱 {% if vente.whatsapp_envoye %}Renvoyer{% else %}Envoyer{% endif %} le reçu WhatsApp
+        </button>
+      </form>
+      {% elif not vente.client_tel %}
+      <div style="font-size:12px;color:var(--muted)">Aucun numéro enregistré pour cette vente.</div>
+      {% endif %}
+    </div>
+
+    <!-- Aperçu message -->
+    {% if vente.client_tel %}
+    <div class="card p-4 mb-3">
+      <div class="card-header-label mb-2">Aperçu du message</div>
+      <div style="background:#075E54;border-radius:10px;padding:14px;font-size:12px;
+                  color:#fff;font-family:var(--mono);white-space:pre-wrap;line-height:1.6;
+                  max-height:220px;overflow-y:auto">{{ vente.generer_message_whatsapp(devise) }}</div>
+    </div>
+    {% endif %}
+
+    <!-- Annuler -->
+    {% if vente.statut == 'validee' %}
+    <div class="card p-4">
+      <div class="card-header-label mb-2">Annuler la vente</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px">
+        Le stock des produits sera remis automatiquement.
+      </div>
+      <form method="POST" action="{{ url_for('annuler_vente', id=vente.id) }}"
+            onsubmit="return confirm('Annuler cette vente et remettre le stock ?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-outline-danger w-100">Annuler la vente</button>
+      </form>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

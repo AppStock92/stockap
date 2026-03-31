@@ -356,6 +356,10 @@
        {% if request.endpoint == 'scanner' %}aria-current="page"{% endif %}>
       🔍Scanner
     </a>
+    <a class="sb-link {% if request.endpoint in ['liste_ventes','creer_vente','voir_vente'] %}active{% endif %}"
+       href="{{ url_for('liste_ventes') }}">
+      🛍️Ventes
+    </a>
     {% if est_manager %}
     <a class="sb-link {% if request.endpoint == 'associer_codes' %}active{% endif %}"
        href="{{ url_for('associer_codes') }}">
@@ -419,6 +423,10 @@
        href="{{ url_for('parametres_email') }}">
       ⚙️Paramètres
     </a>
+    <a class="sb-link {% if request.endpoint == 'admin_utilisateurs' %}active{% endif %}"
+       href="{{ url_for('admin_utilisateurs') }}">
+      👥Admin comptes{% if en_attente_count > 0 %} <span style="background:#E24B4A;color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;font-family:var(--mono)">{{ en_attente_count }}</span>{% endif %}
+    </a>
     {% endif %}
   </div>
 
@@ -480,6 +488,62 @@
   </div>
   <div class="topbar-right">
     {% if current_user.is_authenticated %}
+
+    <!-- Sélecteur de devise rapide -->
+    <div style="position:relative;display:inline-block" id="deviseSwitcherWrap">
+      <button onclick="toggleDevisePicker()"
+              title="Changer de devise"
+              style="background:none;border:1px solid var(--bs-border-color);border-radius:8px;
+                     padding:5px 10px;cursor:pointer;font-size:12px;font-family:var(--mono);
+                     color:var(--bs-body-color);transition:all .15s;display:flex;align-items:center;gap:4px">
+        {{ devise_symbole | default(devise) }}
+        <span style="font-size:9px;opacity:.6">▼</span>
+      </button>
+      <div id="devisePicker"
+           style="display:none;position:absolute;right:0;top:calc(100% + 6px);z-index:2000;
+                  background:var(--surface, #1E1D1B);border:1px solid var(--bs-border-color);
+                  border-radius:12px;padding:8px;min-width:220px;
+                  box-shadow:0 8px 24px rgba(0,0,0,.3)">
+        <div style="font-size:11px;color:var(--muted);padding:4px 8px 8px;font-family:var(--mono);
+                    text-transform:uppercase;letter-spacing:.06em">Choisir la devise</div>
+        {% for code, info in DEVISES.items() %}
+        <form method="POST" action="{{ url_for('changer_devise') }}" style="margin:0">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="hidden" name="devise" value="{{ code }}">
+          {% if (current_user.devise or '€') == code %}
+          <button type="button"
+                  style="width:100%;text-align:left;background:var(--bs-body-bg);
+                         border:none;border-radius:7px;padding:7px 10px;cursor:default;
+                         font-size:13px;color:var(--bs-body-color);display:flex;
+                         align-items:center;justify-content:space-between;font-family:inherit">
+            <span>
+              <strong style="font-family:var(--mono);font-size:12px;margin-right:6px">{{ info.symbole }}</strong>
+              {{ info.nom }}
+            </span>
+            <span style="color:#1D9E75;font-size:12px">✓ Actuel</span>
+          </button>
+          {% else %}
+          <button type="submit"
+                  onclick="return confirmerConversion('{{ current_user.devise or "€" }}', '{{ code }}', '{{ info.symbole }}')"
+                  style="width:100%;text-align:left;background:none;
+                         border:none;border-radius:7px;padding:7px 10px;cursor:pointer;
+                         font-size:13px;color:var(--bs-body-color);display:flex;
+                         align-items:center;justify-content:space-between;
+                         transition:background .12s;font-family:inherit"
+                  onmouseover="this.style.background='var(--bs-body-bg)'"
+                  onmouseout="this.style.background='none'">
+            <span>
+              <strong style="font-family:var(--mono);font-size:12px;margin-right:6px">{{ info.symbole }}</strong>
+              {{ info.nom }}
+            </span>
+            <span style="font-size:10px;color:var(--muted)">Convertir →</span>
+          </button>
+          {% endif %}
+        </form>
+        {% endfor %}
+      </div>
+    </div>
+
     <!-- Cloche notifications -->
     <button id="notif-bell" onclick="toggleNotifPanel()"
             aria-label="Notifications{% if nb_notifs > 0 %} — {{ nb_notifs }} non lues{% endif %}"
@@ -816,6 +880,42 @@ function skipOnboarding(){
 {% endif %}
 <!-- ═══════ /AUTO-DÉCONNEXION ════════════════════════════════════ -->
 
+
+<script>
+// Taux de conversion pour aperçu
+const DEVISES_BASE = {{ DEVISES | tojson | safe }};
+
+function getTauxBase(de, vers) {
+  if (de === vers) return 1;
+  const a = DEVISES_BASE[de]?.taux_vers_eur || 1;
+  const b = DEVISES_BASE[vers]?.taux_vers_eur || 1;
+  return a / b;
+}
+
+function confirmerConversion(ancienne, nouvelle, symbole) {
+  const taux = getTauxBase(ancienne, nouvelle);
+  const msg = 'Convertir tous les prix de ' + ancienne + ' vers ' + symbole + ' ?\n\n'
+    + 'Taux appliqué : 1 ' + ancienne + ' = ' + taux.toFixed(4) + ' ' + nouvelle + '\n\n'
+    + '⚠️ Tous les prix produits, ventes et reçus seront mis à jour.\n'
+    + 'Cette action ne peut pas être annulée.';
+  return confirm(msg);
+}
+
+function toggleDevisePicker() {
+  const picker = document.getElementById('devisePicker');
+  if (!picker) return;
+  const isOpen = picker.style.display === 'block';
+  picker.style.display = isOpen ? 'none' : 'block';
+}
+
+document.addEventListener('click', function(e) {
+  const wrap = document.getElementById('deviseSwitcherWrap');
+  if (wrap && !wrap.contains(e.target)) {
+    const picker = document.getElementById('devisePicker');
+    if (picker) picker.style.display = 'none';
+  }
+});
+</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -11,19 +11,21 @@
     [data-theme="dark"] {--bg:#141413;--surface:#1E1D1B;--border:#2E2D2A;--text:#E8E6E0;--muted:#888780}
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding:3rem 1rem}
-    .brand{font-family:'IBM Plex Mono',monospace;font-size:14px;letter-spacing:.04em;color:var(--text);text-decoration:none;display:flex;align-items:center;gap:6px}
+    .brand{font-family:'IBM Plex Mono',monospace;font-size:14px;color:var(--text);text-decoration:none;display:flex;align-items:center;gap:6px}
     .brand span{opacity:.4}
     .nav{display:flex;align-items:center;justify-content:space-between;max-width:860px;margin:0 auto 2.5rem}
     h1{font-size:2rem;font-weight:600;text-align:center;margin-bottom:.5rem}
-    .sub{text-align:center;color:var(--muted);font-size:16px;margin-bottom:2.5rem}
-    .plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1.25rem;max-width:860px;margin:0 auto}
+    .sub{text-align:center;color:var(--muted);font-size:15px;margin-bottom:.5rem}
+    .eco{text-align:center;color:#1D9E75;font-size:13px;font-weight:500;margin-bottom:2.5rem}
+    .plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1.25rem;max-width:800px;margin:0 auto}
     .plan{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:1.75rem;position:relative}
-    .plan.featured{border:2px solid var(--text)}
-    .popular{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--bg);font-size:10px;font-weight:600;padding:3px 12px;border-radius:20px;white-space:nowrap;font-family:'IBM Plex Mono',monospace}
+    .plan.featured{border:2px solid #EF9F27}
+    .popular{position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:#EF9F27;color:#fff;font-size:10px;font-weight:600;padding:3px 12px;border-radius:20px;white-space:nowrap;font-family:'IBM Plex Mono',monospace}
     .plan-name{font-size:12px;font-family:'IBM Plex Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:.5rem}
     .plan-price{font-size:2.5rem;font-weight:700;line-height:1;margin-bottom:.25rem}
     .plan-price span{font-size:14px;font-weight:400;color:var(--muted)}
-    .features{list-style:none;margin:1.25rem 0 1.5rem}
+    .plan-save{font-size:12px;color:#1D9E75;font-weight:500;margin-bottom:.75rem}
+    .features{list-style:none;margin:1rem 0 1.5rem}
     .features li{font-size:13px;padding:5px 0;color:var(--muted);display:flex;align-items:center;gap:8px}
     .features li::before{content:"✓";color:#1D9E75;font-weight:700;flex-shrink:0}
     .btn{display:block;text-align:center;padding:11px;border-radius:9px;font-size:14px;font-weight:500;text-decoration:none;cursor:pointer;border:none;width:100%;font-family:inherit;transition:opacity .15s}
@@ -50,44 +52,70 @@
 </div>
 
 <h1>Tarifs simples</h1>
-<p class="sub">Commencez gratuitement. Évoluez selon vos besoins.</p>
+<p class="sub">Commencez gratuitement. Un seul plan payant, tout inclus.</p>
+<p class="eco">💡 Plan annuel : 15 €/an au lieu de 24 €/an — économisez 9 €</p>
 
 <div class="plans">
-  {% for plan_id, plan in plans.items() %}
-  <div class="plan {% if plan.badge %}featured{% endif %}">
-    {% if plan.badge %}<div class="popular">⭐ {{ plan.badge }}</div>{% endif %}
-    <div class="plan-name">{{ plan.nom }}</div>
-    <div class="plan-price">{{ plan.prix }} €<span>/mois</span></div>
+
+  <!-- Gratuit -->
+  <div class="plan">
+    <div class="plan-name">Gratuit</div>
+    <div class="plan-price">0 €<span>/toujours</span></div>
     <ul class="features">
-      {% for f in plan.features %}<li>{{ f }}</li>{% endfor %}
+      {% for f in plans.free.features %}<li>{{ f }}</li>{% endfor %}
     </ul>
     {% if connecte %}
-      {% if plan_id == 'free' %}
-        <a href="{{ url_for('index') }}" class="btn btn-outline">Plan actuel</a>
-      {% else %}
-        <form method="POST" action="{{ url_for('stripe_checkout', plan_id=plan_id) }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button type="submit" class="btn {% if plan.badge %}btn-dark{% else %}btn-outline{% endif %}">
-            Choisir {{ plan.nom }} →
-          </button>
-        </form>
-      {% endif %}
+      <a href="{{ url_for('index') }}" class="btn btn-outline">Mon espace</a>
     {% else %}
-      <a href="{{ url_for('register') }}" class="btn {% if plan.badge %}btn-dark{% else %}btn-outline{% endif %}">
-        {% if plan_id == 'free' %}Démarrer gratuitement{% else %}Commencer — {{ plan.affichage }}{% endif %}
-      </a>
+      <a href="{{ url_for('register') }}" class="btn btn-outline">Démarrer gratuitement</a>
     {% endif %}
   </div>
-  {% endfor %}
+
+  <!-- Mensuel -->
+  <div class="plan">
+    <div class="plan-name">Mensuel</div>
+    <div class="plan-price">2 €<span>/mois</span></div>
+    <ul class="features">
+      {% for f in plans.monthly.features %}<li>{{ f }}</li>{% endfor %}
+    </ul>
+    {% if connecte %}
+      <form method="POST" action="{{ url_for('stripe_checkout', plan_id='monthly') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-outline">Choisir le mensuel →</button>
+      </form>
+    {% else %}
+      <a href="{{ url_for('register') }}" class="btn btn-outline">Commencer →</a>
+    {% endif %}
+  </div>
+
+  <!-- Annuel -->
+  <div class="plan featured">
+    <div class="popular">⭐ Meilleur prix</div>
+    <div class="plan-name">Annuel</div>
+    <div class="plan-price">15 €<span>/an</span></div>
+    <div class="plan-save">= 1,25 €/mois · Économisez 9 €</div>
+    <ul class="features">
+      {% for f in plans.yearly.features %}<li>{{ f }}</li>{% endfor %}
+    </ul>
+    {% if connecte %}
+      <form method="POST" action="{{ url_for('stripe_checkout', plan_id='yearly') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-dark">Choisir l'annuel →</button>
+      </form>
+    {% else %}
+      <a href="{{ url_for('register') }}" class="btn btn-dark">Commencer →</a>
+    {% endif %}
+  </div>
+
 </div>
 
 <div class="faq">
   <h3>Puis-je annuler à tout moment ?</h3>
-  <p>Oui, sans engagement. Annulez depuis votre espace abonnement. Vous gardez le plan jusqu'à la fin de la période payée.</p>
-  <h3>Puis-je changer de plan ?</h3>
-  <p>Oui, vous pouvez passer du plan Starter au Pro (ou inversement) à tout moment depuis votre espace abonnement.</p>
+  <p>Oui, sans engagement. Pour le mensuel, annulez avant le prochain prélèvement. Pour l'annuel, vous gardez l'accès jusqu'à la fin de la période.</p>
+  <h3>Quelle différence entre mensuel et annuel ?</h3>
+  <p>Les deux plans donnent exactement les mêmes fonctionnalités illimitées. L'annuel coûte 15 €/an au lieu de 24 €/an (12 × 2 €) — vous économisez 9 €.</p>
   <h3>Les paiements sont-ils sécurisés ?</h3>
-  <p>Oui. Les paiements sont gérés par Stripe (certifié PCI-DSS). Nous ne stockons aucune donnée de carte.</p>
+  <p>Oui. Les paiements sont gérés par Stripe (certifié PCI-DSS). Nous ne stockons aucune donnée de carte bancaire.</p>
 </div>
 
 <script>

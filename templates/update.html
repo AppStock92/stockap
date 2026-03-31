@@ -41,7 +41,7 @@
           <div class="form-text">Utilisé pour identifier le produit au scanner</div>
         </div>
         <div class="mb-3">
-          <label class="form-label">Prix unitaire (€)</label>
+          <label class="form-label">Prix unitaire ({{ devise_symbole | default(devise) }})</label>
           <input type="number" name="prix" class="form-control" step="0.01"
                  value="{{ produit['prix'] }}" min="0" required>
         </div>

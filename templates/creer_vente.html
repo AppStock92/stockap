@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% block title %}Nouvelle vente — StockApp{% endblock %}
+
+{% block head %}
+<style>
+  .ligne-produit{background:var(--bs-body-bg);border-radius:10px;padding:14px;
+                 margin-bottom:10px;border:1px solid var(--bs-border-color);transition:border-color .15s}
+  .ligne-produit:hover{border-color:var(--bs-body-color)}
+  .remove-btn{background:none;border:none;color:var(--muted);cursor:pointer;
+              font-size:20px;line-height:1;padding:0;transition:color .15s}
+  .remove-btn:hover{color:#C0392B}
+  .total-box{background:var(--bs-body-bg);border-radius:12px;padding:16px 20px;
+             border:2px solid var(--bs-body-color)}
+  .mode-btn{border:1px solid var(--bs-border-color);border-radius:8px;padding:8px 12px;
+            font-size:13px;cursor:pointer;background:none;color:var(--muted);transition:all .15s}
+  .mode-btn.active{border-color:var(--bs-body-color);background:var(--bs-body-color);
+                   color:var(--bs-body-bg);font-weight:500}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <span class="page-label mb-0">Nouvelle vente</span>
+  <a href="{{ url_for('liste_ventes') }}" class="btn btn-outline-secondary btn-sm">← Ventes</a>
+</div>
+
+<form method="POST" id="venteForm">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="mode_paiement" id="modePaiementInput" value="especes">
+
+  <div class="row g-4">
+
+    <!-- ═══ Produits ═══ -->
+    <div class="col-12 col-lg-7">
+      <div class="card p-4 mb-3">
+        <div class="card-header-label mb-3">Produits</div>
+        <div id="lignes-container"></div>
+        <button type="button" class="btn btn-outline-secondary w-100 mt-2" onclick="ajouterLigne()">
+          + Ajouter un produit
+        </button>
+      </div>
+
+      <!-- Total -->
+      <div class="total-box mb-3">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <span style="color:var(--muted);font-size:14px">Sous-total</span>
+          <span id="totalBrut" style="font-family:var(--mono);font-size:14px">0.00 {{ devise }}</span>
+        </div>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <span style="color:var(--muted);font-size:14px">Remise</span>
+          <div class="d-flex align-items-center gap-2">
+            <input type="number" name="remise" id="remiseInput" class="form-control form-control-sm"
+                   style="width:70px;text-align:center;font-family:var(--mono)"
+                   value="0" min="0" max="100" oninput="calculerTotal()"> %
+          </div>
+        </div>
+        <div style="border-top:1px solid var(--bs-border-color);padding-top:10px;
+                    display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:16px;font-weight:500">Total</span>
+          <span id="totalFinal" style="font-size:24px;font-weight:700;font-family:var(--mono)">
+            0.00 {{ devise }}
+          </span>
+        </div>
+      </div>
+
+      <!-- Mode paiement -->
+      <div class="card p-4">
+        <div class="card-header-label mb-3">Mode de paiement</div>
+        <div class="d-flex gap-2 flex-wrap">
+          <button type="button" class="mode-btn active" onclick="setMode('especes', this)">💵 Espèces</button>
+          <button type="button" class="mode-btn" onclick="setMode('carte', this)">💳 Carte</button>
+          <button type="button" class="mode-btn" onclick="setMode('virement', this)">🏦 Virement</button>
+          <button type="button" class="mode-btn" onclick="setMode('cheque', this)">📝 Chèque</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Client & actions ═══ -->
+    <div class="col-12 col-lg-5">
+      <div class="card p-4 mb-3">
+        <div class="card-header-label mb-3">Client (optionnel)</div>
+        <div class="mb-3">
+          <label class="form-label">Nom</label>
+          <input type="text" name="client_nom" class="form-control" placeholder="Jean Dupont">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Téléphone WhatsApp</label>
+          <input type="tel" name="client_tel" class="form-control"
+                 placeholder="+33612345678"
+                 oninput="validerTel(this)" id="telInput">
+          <div id="telFeedback" class="form-text"></div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Email</label>
+          <input type="email" name="client_email" class="form-control" placeholder="client@email.com">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Note</label>
+          <textarea name="note" class="form-control" rows="2" placeholder="Remarque..."></textarea>
+        </div>
+      </div>
+
+      <!-- WhatsApp -->
+      <div class="card p-4 mb-3">
+        <div class="card-header-label mb-3">Envoyer le reçu</div>
+        <div class="form-check">
+          <input type="checkbox" name="envoyer_whatsapp" id="chkWA"
+                 class="form-check-input" checked>
+          <label for="chkWA" class="form-check-label" style="font-size:14px">
+            📱 Envoyer par WhatsApp
+          </label>
+        </div>
+        <div class="form-text mt-1">Le reçu sera envoyé au numéro renseigné ci-dessus.</div>
+      </div>
+
+      <button type="submit" class="btn btn-brand w-100"
+              style="height:54px;font-size:16px;font-weight:500" id="btnSubmit">
+        ✓ Valider la vente
+      </button>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const PRODUITS = {{ produits_json | safe }};
+const DEVISE   = "{{ devise_symbole | default(devise) }}";
+let ligneCount = 0;
+
+function ajouterLigne(pid=null, qte=1, prix=null) {
+  const idx = ligneCount++;
+  const div = document.createElement('div');
+  div.className = 'ligne-produit';
+  div.id = 'ligne-' + idx;
+
+  const options = PRODUITS.map(p =>
+    '<option value="' + p.id + '" data-prix="' + p.prix + '" data-stock="' + p.quantite + '"'
+    + (p.id==pid?' selected':'') + '>'
+    + p.nom + ' (stock: ' + p.quantite + ')'
+    + '</option>'
+  ).join('');
+
+  div.innerHTML =
+    '<div class="row g-2 align-items-end">' +
+    '<div class="col-12 col-sm-5">' +
+    '<label class="form-label" style="font-size:12px">Produit</label>' +
+    '<select name="produit_id[]" class="form-select" onchange="onProduitChange(this,' + idx + ')">' +
+    '<option value="">— Choisir —</option>' + options + '</select></div>' +
+    '<div class="col-4 col-sm-2">' +
+    '<label class="form-label" style="font-size:12px">Qté</label>' +
+    '<input type="number" name="quantite[]" class="form-control" value="' + qte + '" min="1"' +
+    ' oninput="calculerTotal()" id="qte-' + idx + '"></div>' +
+    '<div class="col-5 col-sm-3">' +
+    '<label class="form-label" style="font-size:12px">Prix (' + DEVISE + ')</label>' +
+    '<input type="number" name="prix[]" id="prix-' + idx + '" class="form-control"' +
+    ' value="' + (prix||'') + '" step="0.01" min="0" oninput="calculerTotal()"></div>' +
+    '<div class="col-3 col-sm-2 d-flex align-items-end gap-1 pb-1">' +
+    '<span id="st-' + idx + '" style="font-size:12px;font-family:var(--mono);color:var(--muted)"></span>' +
+    '<button type="button" class="remove-btn ms-auto" onclick="suppLigne(' + idx + ')">×</button></div>' +
+    '</div>';
+
+  document.getElementById('lignes-container').appendChild(div);
+  if (pid) {
+    document.querySelector('#ligne-' + idx + ' select').value = pid;
+    onProduitChange(document.querySelector('#ligne-' + idx + ' select'), idx);
+  }
+  calculerTotal();
+}
+
+function onProduitChange(sel, idx) {
+  const opt = sel.options[sel.selectedIndex];
+  const px  = parseFloat(opt.dataset.prix || 0);
+  const inp = document.getElementById('prix-' + idx);
+  if (inp && !inp.value) inp.value = px.toFixed(2);
+  calculerTotal();
+}
+
+function suppLigne(idx) {
+  document.getElementById('ligne-' + idx)?.remove();
+  calculerTotal();
+}
+
+function calculerTotal() {
+  let total = 0;
+  document.querySelectorAll('.ligne-produit').forEach(div => {
+    const qte  = parseFloat(div.querySelector('[name="quantite[]"]')?.value || 0);
+    const prix = parseFloat(div.querySelector('[name="prix[]"]')?.value || 0);
+    const st   = qte * prix;
+    total += st;
+    const stEl = div.querySelector('[id^="st-"]');
+    if (stEl) stEl.textContent = (qte>0&&prix>0) ? st.toFixed(2) : '';
+  });
+  const remise = parseFloat(document.getElementById('remiseInput')?.value || 0);
+  const final  = total * (1 - remise / 100);
+  document.getElementById('totalBrut').textContent  = total.toFixed(2) + ' ' + DEVISE;
+  document.getElementById('totalFinal').textContent = final.toFixed(2) + ' ' + DEVISE;
+}
+
+function setMode(mode, btn) {
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('modePaiementInput').value = mode;
+}
+
+function validerTel(input) {
+  const val = input.value.trim();
+  const fb  = document.getElementById('telFeedback');
+  if (!val) { fb.textContent = ''; return; }
+  const clean = val.replace(/[\s\-\.\(\)]/g, '');
+  if (/^\+?\d{9,15}$/.test(clean)) {
+    fb.textContent = '✓ Format valide';
+    fb.style.color = '#1D9E75';
+  } else {
+    fb.textContent = 'Exemple : +33612345678 ou 0612345678';
+    fb.style.color = '#C0392B';
+  }
+}
+
+document.getElementById('venteForm').addEventListener('submit', function(e) {
+  let ok = false;
+  document.querySelectorAll('[name="produit_id[]"]').forEach(s => { if(s.value) ok = true; });
+  if (!ok) { e.preventDefault(); alert('Ajoutez au moins un produit.'); }
+});
+
+// Première ligne au démarrage
+ajouterLigne();
+</script>
+{% endblock %}

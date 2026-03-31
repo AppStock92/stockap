@@ -136,6 +136,15 @@
         <div class="field-msg" id="msg-confirm"></div>
       </div>
 
+            {% if mode == 'invitation' %}
+      <div class="mb-3">
+        <label class="form-label">Code d'invitation <span style="color:#C0392B">*</span></label>
+        <input type="text" name="code_invitation" class="form-control"
+               placeholder="Ex: WELCOME2024" required
+               style="font-family:var(--mono);text-transform:uppercase">
+        <div class="form-text">Demandez votre code à l'administrateur.</div>
+      </div>
+      {% endif %}
       <button type="submit" class="btn-submit" id="submitBtn">
         Créer mon espace →
       </button>

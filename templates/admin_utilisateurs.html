@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% block title %}Admin — Gestion des comptes{% endblock %}
+
+{% block content %}
+<span class="page-label">Administration — Comptes utilisateurs</span>
+
+<!-- ═══ Comptes en attente ═══ -->
+{% if en_attente %}
+<div class="card p-4 mb-4" style="border-left:3px solid #EF9F27">
+  <div class="card-header-label mb-3" style="color:#B7651A">
+    ⏳ {{ en_attente|length }} compte(s) en attente de validation
+  </div>
+  {% for u in en_attente %}
+  <div class="d-flex align-items-center gap-3 py-3 {% if not loop.last %}border-bottom{% endif %}">
+    <div style="width:40px;height:40px;border-radius:50%;background:#FFF4E6;
+                color:#B7651A;display:flex;align-items:center;justify-content:center;
+                font-size:16px;font-weight:600;flex-shrink:0">
+      {{ u.username[0]|upper }}
+    </div>
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:500">{{ u.username }}</div>
+      <div style="font-size:12px;color:var(--muted)">
+        {{ u.email or '—' }}
+        {% if u.cree_le %} · Inscrit {{ u.cree_le.strftime('%d/%m/%Y %H:%M') }}{% endif %}
+      </div>
+    </div>
+    <div class="d-flex gap-2">
+      <form method="POST" action="{{ url_for('activer_compte', id=u.id) }}" style="margin:0">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-sm"
+                style="background:#EFF8F3;color:#1E7E4A;border:1px solid #1D9E75">
+          ✓ Activer
+        </button>
+      </form>
+      <form method="POST" action="{{ url_for('refuser_compte', id=u.id) }}"
+            onsubmit="return confirm('Supprimer ce compte ?')" style="margin:0">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-sm"
+                style="background:#FEF0EE;color:#C0392B;border:1px solid #F09595">
+          ✗ Refuser
+        </button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="row g-4">
+
+  <!-- ═══ Tous les utilisateurs ═══ -->
+  <div class="col-12 col-lg-8">
+    <div class="card">
+      <div class="px-4 py-3 border-bottom d-flex align-items-center justify-content-between">
+        <span class="card-header-label">Tous les comptes ({{ tous|length }})</span>
+        <input type="text" id="filterUsers" class="form-control form-control-sm"
+               style="max-width:200px" placeholder="Filtrer…"
+               oninput="filtrer(this.value)">
+      </div>
+      <div id="users-list">
+        {% for u in tous %}
+        <div class="d-flex align-items-center gap-3 px-4 py-3
+                    {% if not loop.last %}border-bottom{% endif %} user-row"
+             data-name="{{ u.username|lower }} {{ (u.email or '')|lower }}">
+          <div style="width:36px;height:36px;border-radius:50%;flex-shrink:0;
+                      display:flex;align-items:center;justify-content:center;
+                      font-size:14px;font-weight:600;
+                      background:{% if u.is_active %}#E6F1FB{% else %}#F5F4F0{% endif %};
+                      color:{% if u.is_active %}#185FA5{% else %}var(--muted){% endif %}">
+            {{ u.username[0]|upper }}
+          </div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:14px;font-weight:500;display:flex;align-items:center;gap:8px">
+              {{ u.username }}
+              {% if u.id == current_user.id %}
+              <span style="font-size:10px;background:var(--bs-body-bg);color:var(--muted);
+                           padding:1px 6px;border-radius:10px;border:.5px solid var(--bs-border-color)">vous</span>
+              {% endif %}
+              <span style="font-size:10px;padding:2px 7px;border-radius:10px;font-family:var(--mono);
+                           background:{% if u.role=='admin' %}#E6F1FB{% elif u.role=='manager' %}#EAF3DE{% else %}var(--bs-body-bg){% endif %};
+                           color:{% if u.role=='admin' %}#185FA5{% elif u.role=='manager' %}#3B6D11{% else %}var(--muted){% endif %}">
+                {{ u.role }}
+              </span>
+            </div>
+            <div style="font-size:12px;color:var(--muted)">
+              {{ u.email or '—' }}
+              {% if u.cree_le %} · {{ u.cree_le.strftime('%d/%m/%Y') }}{% endif %}
+            </div>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <span style="font-size:11px;padding:2px 8px;border-radius:20px;font-family:var(--mono);
+                         background:{% if u.is_active %}#EFF8F3{% else %}#FEF0EE{% endif %};
+                         color:{% if u.is_active %}#1E7E4A{% else %}#C0392B{% endif %}">
+              {% if u.is_active %}● Actif{% else %}● Inactif{% endif %}
+            </span>
+            {% if u.id != current_user.id %}
+            <!-- Donner accès -->
+            <div class="dropdown" style="position:relative">
+              <button type="button" class="btn btn-sm btn-outline-secondary"
+                      onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display=='block'?'none':'block'"
+                      title="Gérer l'accès">🔑</button>
+              <div style="display:none;position:absolute;right:0;top:100%;z-index:100;
+                          background:var(--surface);border:1px solid var(--bs-border-color);
+                          border-radius:8px;padding:6px;min-width:180px;box-shadow:0 4px 12px rgba(0,0,0,.15)">
+                <form method="POST" action="{{ url_for('donner_acces', user_id=u.id) }}" style="margin:0 0 4px">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="plan" value="monthly">
+                  <button type="submit" class="btn btn-sm w-100" style="text-align:left;background:#E6F1FB;color:#185FA5">
+                    ⭐ Accès mensuel (30j)
+                  </button>
+                </form>
+                <form method="POST" action="{{ url_for('donner_acces', user_id=u.id) }}" style="margin:0 0 4px">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="plan" value="yearly">
+                  <button type="submit" class="btn btn-sm w-100" style="text-align:left;background:#EFF8F3;color:#1E7E4A">
+                    🏆 Accès annuel (365j)
+                  </button>
+                </form>
+                <form method="POST" action="{{ url_for('retirer_acces', user_id=u.id) }}" style="margin:0">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button type="submit" class="btn btn-sm w-100" style="text-align:left;background:#FEF0EE;color:#C0392B">
+                    ✗ Retirer l'accès
+                  </button>
+                </form>
+              </div>
+            </div>
+            <form method="POST" action="{{ url_for('toggle_compte', id=u.id) }}" style="margin:0">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm btn-outline-secondary"
+                      title="{% if u.is_active %}Désactiver{% else %}Activer{% endif %}">
+                {% if u.is_active %}⏸{% else %}▶{% endif %}
+              </button>
+            </form>
+            <form method="POST" action="{{ url_for('delete_utilisateur', id=u.id) }}"
+                  onsubmit="return confirm('Supprimer {{ u.username }} ?')" style="margin:0">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-sm btn-outline-danger">🗑</button>
+            </form>
+            {% endif %}
+          </div>
+        </div>
+        {% else %}
+        <div class="p-4 text-center" style="color:var(--muted);font-size:13px">Aucun utilisateur.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Codes d'invitation ═══ -->
+  <div class="col-12 col-lg-4">
+    <div class="card p-4 mb-3">
+      <div class="card-header-label mb-3">Créer un code d'invitation</div>
+      <form method="POST" action="{{ url_for('creer_code_invitation') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="mb-3">
+          <label class="form-label">Code personnalisé (optionnel)</label>
+          <input type="text" name="code_custom" class="form-control"
+                 placeholder="Ex: WELCOME2024" style="font-family:var(--mono)">
+        </div>
+        <div class="row g-2 mb-3">
+          <div class="col-6">
+            <label class="form-label">Usages max</label>
+            <input type="number" name="nb_usages" class="form-control" value="1" min="1">
+          </div>
+          <div class="col-6">
+            <label class="form-label">Valide (jours)</label>
+            <input type="number" name="duree_jours" class="form-control" value="7" min="1">
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Domaines autorisés (optionnel)</label>
+          <input type="text" name="domaines" class="form-control"
+                 placeholder="gmail.com, entreprise.com">
+          <div class="form-text">Laisser vide = tous les emails</div>
+        </div>
+        <button type="submit" class="btn btn-brand w-100">
+          + Générer le code
+        </button>
+      </form>
+    </div>
+
+    <!-- Liste codes -->
+    <div class="card p-4">
+      <div class="card-header-label mb-3">Codes actifs</div>
+      {% for c in codes %}
+      <div class="d-flex align-items-center gap-2 py-2 {% if not loop.last %}border-bottom{% endif %}">
+        <div style="flex:1;min-width:0">
+          <div style="font-family:var(--mono);font-size:13px;font-weight:500">{{ c.code }}</div>
+          <div style="font-size:11px;color:var(--muted)">
+            {{ c.nb_usages }}/{{ c.max_usages }} usages
+            {% if c.expire_le %} · exp. {{ c.expire_le.strftime('%d/%m') }}{% endif %}
+            {% if not c.est_valide() %} · <span style="color:#C0392B">Expiré</span>{% endif %}
+          </div>
+        </div>
+        <span style="font-size:11px;padding:2px 7px;border-radius:10px;
+                     background:{% if c.est_valide() %}#EFF8F3{% else %}#FEF0EE{% endif %};
+                     color:{% if c.est_valide() %}#1E7E4A{% else %}#C0392B{% endif %}">
+          {% if c.est_valide() %}✓{% else %}✗{% endif %}
+        </span>
+        <form method="POST" action="{{ url_for('supprimer_code', id=c.id) }}" style="margin:0">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="btn btn-sm btn-outline-danger">🗑</button>
+        </form>
+      </div>
+      {% else %}
+      <p style="font-size:13px;color:var(--muted);margin:0">Aucun code créé.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filtrer(val) {
+  val = val.toLowerCase();
+  document.querySelectorAll('.user-row').forEach(row => {
+    row.style.display = (!val || row.dataset.name.includes(val)) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

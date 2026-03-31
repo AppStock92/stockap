@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Reçus — StockApp{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <span class="page-label mb-0">Reçus clients</span>
+  <a href="{{ url_for('creer_recu') }}" class="btn btn-brand">
+    + Nouveau reçu
+  </a>
+</div>
+
+{% if not recus %}
+<div class="card p-5 text-center">
+  <div style="font-size:40px;margin-bottom:12px">🧾</div>
+  <div style="font-size:15px;font-weight:500;margin-bottom:6px">Aucun reçu créé</div>
+  <div style="font-size:13px;color:var(--muted);margin-bottom:20px">
+    Créez votre premier reçu et envoyez-le par WhatsApp ou email.
+  </div>
+  <a href="{{ url_for('creer_recu') }}" class="btn btn-brand" style="max-width:200px;margin:0 auto">
+    Créer un reçu →
+  </a>
+</div>
+{% else %}
+<div class="card">
+  <div class="px-4 py-3 border-bottom d-flex align-items-center justify-content-between">
+    <span class="card-header-label">{{ recus|length }} reçu(s)</span>
+    <input type="text" id="filterInput" class="form-control form-control-sm"
+           style="max-width:200px" placeholder="Filtrer…"
+           oninput="filtrer(this.value)">
+  </div>
+  <div id="recus-list">
+    {% for r in recus %}
+    <a href="{{ url_for('voir_recu', id=r.id) }}"
+       class="d-flex align-items-center gap-3 px-4 py-3 text-decoration-none
+              {% if not loop.last %}border-bottom{% endif %} recu-row"
+       data-search="{{ r.numero|lower }} {{ (r.client_nom or '')|lower }} {{ (r.client_tel or '')|lower }}"
+       style="color:var(--bs-body-color);transition:background .12s"
+       onmouseover="this.style.background='var(--hover-row)'"
+       onmouseout="this.style.background=''">
+
+      <div style="width:40px;height:40px;border-radius:10px;flex-shrink:0;
+                  background:var(--bs-body-bg);border:1px solid var(--bs-border-color);
+                  display:flex;align-items:center;justify-content:center;font-size:18px">
+        🧾
+      </div>
+
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14px;font-weight:500;font-family:var(--mono)">{{ r.numero }}</div>
+        <div style="font-size:12px;color:var(--muted)">
+          {% if r.client_nom %}{{ r.client_nom }} · {% endif %}
+          {{ r.cree_le.strftime('%d/%m/%Y %H:%M') }}
+        </div>
+      </div>
+
+      <div class="d-flex align-items-center gap-2">
+        {% if r.whatsapp_envoye %}
+        <span title="WhatsApp envoyé" style="font-size:16px">📱</span>
+        {% endif %}
+        {% if r.email_envoye %}
+        <span title="Email envoyé" style="font-size:16px">📧</span>
+        {% endif %}
+        <span style="font-family:var(--mono);font-size:14px;font-weight:600">
+          {{ r.total | round(2) }} {{ devise }}
+        </span>
+        <span style="color:var(--muted);font-size:18px">›</span>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filtrer(val) {
+  val = val.toLowerCase();
+  document.querySelectorAll('.recu-row').forEach(row => {
+    row.style.display = (!val || row.dataset.search.includes(val)) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

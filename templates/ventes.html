@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}Ventes — StockApp{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <span class="page-label mb-0">Ventes</span>
+  <a href="{{ url_for('creer_vente') }}" class="btn btn-brand">+ Nouvelle vente</a>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="card p-3 text-center">
+      <div style="font-size:11px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Ventes</div>
+      <div style="font-size:26px;font-weight:700">{{ nb_ventes }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card p-3 text-center">
+      <div style="font-size:11px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Chiffre d'affaires</div>
+      <div style="font-size:26px;font-weight:700;color:#1D9E75">{{ total_ca | round(2) }} {{ devise }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card p-3 text-center">
+      <div style="font-size:11px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Panier moyen</div>
+      <div style="font-size:26px;font-weight:700">
+        {{ (total_ca / nb_ventes) | round(2) if nb_ventes > 0 else 0 }} {{ devise }}
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card p-3 text-center">
+      <div style="font-size:11px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">WhatsApp envoyés</div>
+      <div style="font-size:26px;font-weight:700">{{ ventes | selectattr('whatsapp_envoye') | list | length }}</div>
+    </div>
+  </div>
+</div>
+
+{% if not ventes %}
+<div class="card p-5 text-center">
+  <div style="font-size:40px;margin-bottom:12px">🛍️</div>
+  <div style="font-size:15px;font-weight:500;margin-bottom:6px">Aucune vente enregistrée</div>
+  <div style="font-size:13px;color:var(--muted);margin-bottom:20px">Créez votre première vente et envoyez le reçu par WhatsApp.</div>
+  <a href="{{ url_for('creer_vente') }}" class="btn btn-brand" style="max-width:200px;margin:0 auto">Nouvelle vente →</a>
+</div>
+{% else %}
+<div class="card">
+  <div class="px-4 py-3 border-bottom d-flex align-items-center justify-content-between">
+    <span class="card-header-label">{{ ventes|length }} vente(s)</span>
+    <input type="text" id="filterInput" class="form-control form-control-sm"
+           style="max-width:200px" placeholder="Filtrer…" oninput="filtrer(this.value)">
+  </div>
+  {% for v in ventes %}
+  <a href="{{ url_for('voir_vente', id=v.id) }}"
+     class="d-flex align-items-center gap-3 px-4 py-3 text-decoration-none vente-row
+            {% if not loop.last %}border-bottom{% endif %}"
+     data-search="{{ v.numero|lower }} {{ (v.client_nom or '')|lower }}"
+     style="color:var(--bs-body-color)">
+    <div style="width:40px;height:40px;border-radius:10px;flex-shrink:0;
+                background:{% if v.statut=='annulee' %}#FEF0EE{% else %}var(--bs-body-bg){% endif %};
+                border:1px solid var(--bs-border-color);
+                display:flex;align-items:center;justify-content:center;font-size:18px">
+      {% if v.statut == 'annulee' %}❌{% else %}🛍️{% endif %}
+    </div>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:14px;font-weight:500;font-family:var(--mono);display:flex;align-items:center;gap:8px">
+        {{ v.numero }}
+        {% if v.statut == 'annulee' %}
+        <span style="font-size:10px;background:#FEF0EE;color:#C0392B;padding:1px 6px;border-radius:10px">Annulée</span>
+        {% endif %}
+      </div>
+      <div style="font-size:12px;color:var(--muted)">
+        {% if v.client_nom %}{{ v.client_nom }} · {% endif %}
+        {{ v.cree_le.strftime('%d/%m/%Y %H:%M') }} · {{ v.lignes|length }} article(s)
+      </div>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      {% if v.whatsapp_envoye %}<span title="WhatsApp envoyé">📱</span>{% endif %}
+      <span style="font-family:var(--mono);font-size:15px;font-weight:700;
+                   color:{% if v.statut=='annulee' %}var(--muted){% else %}#1D9E75{% endif %}">
+        {{ v.total_final | round(2) }} {{ devise }}
+      </span>
+      <span style="color:var(--muted)">›</span>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filtrer(val) {
+  val = val.toLowerCase();
+  document.querySelectorAll('.vente-row').forEach(row => {
+    row.style.display = (!val || row.dataset.search.includes(val)) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}

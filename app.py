@@ -222,6 +222,166 @@ class Abonnement(db.Model):
         }
 
 
+class Vente(db.Model):
+    __tablename__ = 'ventes'
+    id             = db.Column(db.Integer, primary_key=True)
+    numero         = db.Column(db.String(20),  nullable=False, unique=True)
+    entreprise_id  = db.Column(db.Integer, db.ForeignKey('entreprises.id'), nullable=False)
+    cree_par       = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=False)
+    client_nom     = db.Column(db.String(200), nullable=True)
+    client_tel     = db.Column(db.String(30),  nullable=True)
+    client_email   = db.Column(db.String(200), nullable=True)
+    total          = db.Column(db.Float, nullable=False, default=0.0)
+    remise         = db.Column(db.Float, nullable=False, default=0.0)
+    total_final    = db.Column(db.Float, nullable=False, default=0.0)
+    mode_paiement  = db.Column(db.String(30), default='especes')
+    note           = db.Column(db.Text, nullable=True)
+    statut         = db.Column(db.String(20), default='validee')
+    whatsapp_envoye= db.Column(db.Boolean, default=False)
+    email_envoye   = db.Column(db.Boolean, default=False)
+    cree_le        = db.Column(db.DateTime, nullable=False, default=datetime.now)
+    lignes         = db.relationship('LigneVente', backref='vente',
+                                     lazy=True, cascade='all, delete-orphan')
+
+    def generer_message_whatsapp(self, devise='euros'):
+        sep = '\n'
+        lignes_txt = ''
+        for l in self.lignes:
+            st = round(l.quantite * l.prix_unitaire, 2)
+            lignes_txt += '- ' + l.produit_nom + ' x' + str(l.quantite)
+            lignes_txt += ' = ' + str(st) + ' ' + devise + sep
+        paiements = {
+            'especes': 'Especes', 'carte': 'Carte bancaire',
+            'virement': 'Virement', 'cheque': 'Cheque'
+        }
+        paiement = paiements.get(self.mode_paiement, self.mode_paiement)
+        lines = [
+            'Recu de vente #' + self.numero,
+            'Date : ' + self.cree_le.strftime('%d/%m/%Y %H:%M'),
+        ]
+        if self.client_nom:
+            lines.append('Client : ' + self.client_nom)
+        lines.append('')
+        lines.append('Detail :')
+        lines.append(lignes_txt.rstrip())
+        lines.append('')
+        lines.append('Sous-total : ' + str(round(self.total, 2)) + ' ' + devise)
+        if self.remise > 0:
+            lines.append('Remise : -' + str(int(self.remise)) + '%')
+        lines.append('TOTAL : ' + str(round(self.total_final, 2)) + ' ' + devise)
+        lines.append('Paiement : ' + paiement)
+        lines.append('')
+        lines.append('Merci pour votre achat !')
+        lines.append('StockApp')
+        return sep.join(lines)
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'numero': self.numero,
+            'client_nom': self.client_nom, 'client_tel': self.client_tel,
+            'total': self.total, 'remise': self.remise,
+            'total_final': self.total_final,
+            'mode_paiement': self.mode_paiement, 'statut': self.statut,
+            'whatsapp_envoye': self.whatsapp_envoye,
+            'cree_le': self.cree_le.strftime('%d/%m/%Y %H:%M'),
+            'lignes': [l.to_dict() for l in self.lignes],
+        }
+
+
+class LigneVente(db.Model):
+    __tablename__ = 'lignes_vente'
+    id            = db.Column(db.Integer, primary_key=True)
+    vente_id      = db.Column(db.Integer, db.ForeignKey('ventes.id'), nullable=False)
+    produit_id    = db.Column(db.Integer, db.ForeignKey('produits.id'), nullable=True)
+    produit_nom   = db.Column(db.String(200), nullable=False)
+    quantite      = db.Column(db.Integer, nullable=False)
+    prix_unitaire = db.Column(db.Float, nullable=False)
+    sous_total    = db.Column(db.Float, nullable=False)
+
+    def to_dict(self):
+        return {
+            'produit_nom': self.produit_nom, 'quantite': self.quantite,
+            'prix_unitaire': self.prix_unitaire, 'sous_total': self.sous_total,
+        }
+
+
+
+
+class Recu(db.Model):
+    __tablename__ = 'recus'
+    id             = db.Column(db.Integer, primary_key=True)
+    numero         = db.Column(db.String(20),  nullable=False, unique=True)
+    entreprise_id  = db.Column(db.Integer, db.ForeignKey('entreprises.id'), nullable=False)
+    cree_par       = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=False)
+    client_nom     = db.Column(db.String(200), nullable=True)
+    client_tel     = db.Column(db.String(30),  nullable=True)
+    client_email   = db.Column(db.String(200), nullable=True)
+    lignes_json    = db.Column(db.Text,        nullable=False)  # JSON liste produits
+    total          = db.Column(db.Float,       nullable=False, default=0.0)
+    note           = db.Column(db.Text,        nullable=True)
+    whatsapp_envoye= db.Column(db.Boolean,     default=False)
+    email_envoye   = db.Column(db.Boolean,     default=False)
+    cree_le        = db.Column(db.DateTime,    nullable=False, default=datetime.now)
+
+    def get_lignes(self):
+        return json.loads(self.lignes_json) if self.lignes_json else []
+
+    def generer_message(self, devise='€'):
+        """Génère le message texte du reçu."""
+        lignes = self.get_lignes()
+        msg  = f"🧾 *Reçu #{self.numero}*\n"
+        msg += f"📅 {self.cree_le.strftime('%d/%m/%Y %H:%M')}\n"
+        if self.client_nom:
+            msg += f"👤 {self.client_nom}\n"
+        msg += "\n"
+        for l in lignes:
+            sous_total = l['quantite'] * l['prix']
+            msg += f"• {l['nom']} x{l['quantite']} = {sous_total:.2f}{devise}\n"
+        msg += f"\n💰 *Total : {self.total:.2f}{devise}*"
+        if self.note:
+            msg += f"\n📝 {self.note}"
+        msg += "\n\nMerci pour votre achat ! 🙏"
+        return msg
+
+    def to_dict(self):
+        return {
+            'id': self.id, 'numero': self.numero,
+            'client_nom': self.client_nom, 'client_tel': self.client_tel,
+            'total': self.total, 'lignes': self.get_lignes(),
+            'whatsapp_envoye': self.whatsapp_envoye,
+            'email_envoye': self.email_envoye,
+            'cree_le': self.cree_le.strftime('%d/%m/%Y %H:%M'),
+        }
+
+
+class CodeInvitation(db.Model):
+    __tablename__ = 'codes_invitation'
+    id         = db.Column(db.Integer, primary_key=True)
+    code       = db.Column(db.String(50), nullable=False, unique=True)
+    cree_par   = db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=True)
+    utilise    = db.Column(db.Boolean, default=False)
+    utilise_par= db.Column(db.Integer, db.ForeignKey('utilisateurs.id'), nullable=True)
+    max_usages = db.Column(db.Integer, default=1)
+    nb_usages  = db.Column(db.Integer, default=0)
+    expire_le  = db.Column(db.DateTime, nullable=True)
+    cree_le    = db.Column(db.DateTime, nullable=False, default=datetime.now)
+    domaines_autorises = db.Column(db.String(500), nullable=True)  # ex: "gmail.com,entreprise.com"
+
+    def est_valide(self):
+        if self.utilise and self.nb_usages >= self.max_usages:
+            return False
+        if self.expire_le and datetime.now() > self.expire_le:
+            return False
+        return True
+
+    def utiliser(self, user_id):
+        self.nb_usages += 1
+        self.utilise_par = user_id
+        if self.nb_usages >= self.max_usages:
+            self.utilise = True
+        db.session.commit()
+
+
 # Limites par plan
 LIMITES_AB = {
     'free':    {'produits': 10,   'utilisateurs': 1,    'export_pdf': False, 'alertes': False},
@@ -229,9 +389,55 @@ LIMITES_AB = {
     'yearly':  {'produits': 9999, 'utilisateurs': 9999, 'export_pdf': True,  'alertes': True},
 }
 
+# ════════════════════════════════════════════════════════════════
+# DEVISES & CONVERSIONS
+# ════════════════════════════════════════════════════════════════
+
+DEVISES = {
+    '€':   {'nom': 'Euro',           'symbole': '€',   'taux_vers_eur': 1.0},
+    '$':   {'nom': 'Dollar US',      'symbole': '$',   'taux_vers_eur': 0.92},
+    '£':   {'nom': 'Livre sterling', 'symbole': '£',   'taux_vers_eur': 1.17},
+    'CHF': {'nom': 'Franc suisse',   'symbole': 'CHF', 'taux_vers_eur': 1.04},
+    'MAD': {'nom': 'Dirham marocain','symbole': 'MAD', 'taux_vers_eur': 0.092},
+    'TND': {'nom': 'Dinar tunisien', 'symbole': 'TND', 'taux_vers_eur': 0.29},
+    'DZD': {'nom': 'Dinar algérien', 'symbole': 'DZD', 'taux_vers_eur': 0.0068},
+    'XOF': {'nom': 'Franc CFA (UEMOA)','symbole':'CFA','taux_vers_eur': 0.00152},
+    'XAF': {'nom': 'Franc CFA (CEMAC)','symbole':'CFA','taux_vers_eur': 0.00152},
+    'GHS': {'nom': 'Cedi ghanéen',   'symbole': 'GHS', 'taux_vers_eur': 0.063},
+    'NGN': {'nom': 'Naira nigérian', 'symbole': '₦',   'taux_vers_eur': 0.00058},
+    'EGP': {'nom': 'Livre égyptienne','symbole':'EGP', 'taux_vers_eur': 0.019},
+    'CAD': {'nom': 'Dollar canadien','symbole': 'CA$', 'taux_vers_eur': 0.68},
+    'AED': {'nom': 'Dirham émirati', 'symbole': 'AED', 'taux_vers_eur': 0.25},
+}
+
+# 1 EUR = combien de chaque devise
+TAUX_EUR = {k: round(1 / v['taux_vers_eur'], 2) for k, v in DEVISES.items()}
+# Ex: 1€ = 655.96 CFA, 1€ = 10.87 MAD
+
+
+def convertir(montant, devise_source, devise_cible):
+    """Convertit un montant d'une devise vers une autre."""
+    if devise_source == devise_cible:
+        return montant
+    # Convertir en EUR d'abord
+    taux_src = DEVISES.get(devise_source, {}).get('taux_vers_eur', 1.0)
+    taux_dst = DEVISES.get(devise_cible, {}).get('taux_vers_eur', 1.0)
+    montant_eur = montant * taux_src
+    return round(montant_eur / taux_dst, 2)
+
+
+def taux_de_change(devise_source, devise_cible):
+    """Retourne le taux de change entre deux devises."""
+    if devise_source == devise_cible:
+        return 1.0
+    taux_src = DEVISES.get(devise_source, {}).get('taux_vers_eur', 1.0)
+    taux_dst = DEVISES.get(devise_cible, {}).get('taux_vers_eur', 1.0)
+    return round(taux_src / taux_dst, 6)
+
+
 PRIX_AB = {
     'monthly': {'prix': 2,  'label': '2 €/mois', 'duree': 30},
-    'yearly':  {'prix': 13, 'label': '13 €/an',  'duree': 365},
+    'yearly':  {'prix': 15, 'label': '15 €/an',  'duree': 365},
 }
 
 
@@ -384,7 +590,11 @@ class Utilisateur(db.Model, UserMixin):
     role                 = db.Column(db.String(20),  default='admin')
     entreprise_id        = db.Column(db.Integer, db.ForeignKey('entreprises.id'), nullable=True)
     email_verifie        = db.Column(db.Boolean, default=False)
+    is_active            = db.Column(db.Boolean, default=True)   # False = en attente validation admin
+    validation_admin     = db.Column(db.Boolean, default=True)   # True = validé par admin
+    is_admin             = db.Column(db.Boolean, default=False)  # Super-admin
     token_verification   = db.Column(db.String(100), nullable=True)
+    cree_le              = db.Column(db.DateTime, nullable=True)
     token_reset          = db.Column(db.String(100), nullable=True)
     token_reset_exp      = db.Column(db.DateTime,    nullable=True)
     onboarding_complete  = db.Column(db.Boolean,     default=False)
@@ -406,34 +616,58 @@ def load_user(user_id):
 # PLANS — définis avant les décorateurs et context_processor
 # ════════════════════════════════════════════════════════════════
 
+# ════════════════════════════════════════════════════════════════
+# CONFIGURATION INSCRIPTION
+# ════════════════════════════════════════════════════════════════
+INSCRIPTION_CONFIG = {
+    'mode': os.environ.get('INSCRIPTION_MODE', 'invitation'),
+    # Modes disponibles :
+    # 'libre'      — tout le monde peut s'inscrire
+    # 'invitation' — code d'invitation requis
+    # 'admin'      — validation manuelle par admin
+    # 'domaine'    — restriction par domaine email
+    'domaines_autorises': os.environ.get('DOMAINES_AUTORISES', '').split(','),
+    'limite_par_jour': int(os.environ.get('MAX_INSCRIPTIONS_JOUR', '10')),
+}
+
+
+def compter_inscriptions_jour():
+    """Nombre d'inscriptions aujourd'hui (anti-abus)."""
+    debut = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    return Utilisateur.query.filter(Utilisateur.cree_le >= debut).count()            if hasattr(Utilisateur, 'cree_le') else 0
+
+
 PLANS = {
     'free': {
         'nom': 'Gratuit', 'prix': 0, 'affichage': '0 €/mois',
-        'features': ['50 produits max', '1 utilisateur', 'Export CSV',
+        'features': ['10 produits max', '1 utilisateur', 'Export CSV',
                      'Dashboard & graphiques', 'Scanner code-barres'],
         'badge': None, 'price_id': None,
         'limites': {
-            'produits': 50, 'utilisateurs': 1, 'export_pdf': False,
-            'alertes_email': False, 'categories': 10, 'fournisseurs': 5,
-            'historique_jours': 30,
+            'produits': 10, 'utilisateurs': 1, 'export_pdf': False,
+            'alertes_email': False, 'categories': 5, 'fournisseurs': 3,
+            'historique_jours': 7,
         }
     },
-    'starter': {
-        'nom': 'Starter', 'prix': 2, 'affichage': '2 €/mois',
-        'features': ['200 produits', '3 utilisateurs', 'Export CSV & PDF',
-                     'Alertes email', 'Support email'],
-        'badge': None, 'price_id': os.environ.get('STRIPE_PRICE_ID_STARTER', ''),
+    'monthly': {
+        'nom': 'Mensuel', 'prix': 2, 'affichage': '2 €/mois',
+        'features': ['Produits illimités', 'Utilisateurs illimités',
+                     'Export CSV & PDF', 'Alertes email',
+                     'Scanner code-barres', 'Support email'],
+        'badge': None, 'price_id': os.environ.get('STRIPE_PRICE_ID_MONTHLY', ''),
         'limites': {
-            'produits': 200, 'utilisateurs': 3, 'export_pdf': True,
-            'alertes_email': True, 'categories': 50, 'fournisseurs': 30,
-            'historique_jours': 90,
+            'produits': 9999, 'utilisateurs': 9999, 'export_pdf': True,
+            'alertes_email': True, 'categories': 9999, 'fournisseurs': 9999,
+            'historique_jours': 9999,
         }
     },
-    'pro': {
-        'nom': 'Pro', 'prix': 13, 'affichage': '13 €/mois',
-        'features': ['Produits illimités', 'Équipe illimitée', 'Export PDF',
-                     'Alertes email', 'Historique complet', 'Support prioritaire'],
-        'badge': 'Populaire', 'price_id': os.environ.get('STRIPE_PRICE_ID_PRO', ''),
+    'yearly': {
+        'nom': 'Annuel', 'prix': 15, 'affichage': '15 €/an',
+        'features': ['Produits illimités', 'Utilisateurs illimités',
+                     'Export CSV & PDF', 'Alertes email',
+                     'Scanner code-barres', 'Support prioritaire',
+                     '✨ Économisez 9 € vs mensuel'],
+        'badge': 'Meilleur prix', 'price_id': os.environ.get('STRIPE_PRICE_ID_YEARLY', ''),
         'limites': {
             'produits': 9999, 'utilisateurs': 9999, 'export_pdf': True,
             'alertes_email': True, 'categories': 9999, 'fournisseurs': 9999,
@@ -563,9 +797,14 @@ def inject_globals():
             utilisateur_id=current_user.id, lue=False
         ).count()
         if entreprise:
-            plan_actuel = entreprise.plan or 'free'
+            # Priorité au plan de l'abonnement utilisateur s'il existe
+            ab_user = get_abonnement() if current_user.is_authenticated else None
+            if ab_user and ab_user.plan in ('monthly', 'yearly'):
+                plan_actuel = 'pro'  # monthly/yearly = Pro dans PLANS
+            else:
+                plan_actuel = entreprise.plan or 'free'
 
-    est_pro = plan_actuel == 'pro'
+    est_pro = plan_actuel in ('monthly', 'yearly')
     limites = PLANS.get(plan_actuel, PLANS['free'])['limites']
     show_onboarding = (
         current_user.is_authenticated and
@@ -577,8 +816,27 @@ def inject_globals():
     ab_actif = ab.est_actif() if ab else False
     is_superadmin = getattr(current_user, 'is_admin', False) if current_user.is_authenticated else False
 
+    en_attente_count = 0
+    if current_user.is_authenticated and getattr(current_user, 'role', '') == 'admin':
+        en_attente_count = Utilisateur.query.filter_by(is_active=False).count()
+
+    # Infos devise
+    devise_info   = DEVISES.get(devise, DEVISES.get('€'))
+    taux_cfa      = taux_de_change(devise, 'XOF') if devise != 'XOF' else 1.0
+    # Prix stockés directement dans la devise de l'utilisateur
+    # Pas de conversion — l'utilisateur saisit et voit dans SA devise
+    taux_affichage = 1.0
+    devise_symbole = devise_info.get('symbole', devise) if devise_info else devise
+
     return {
         'devise': devise, 'entreprise': entreprise, 'role': role,
+        'devise_info': devise_info,
+        'devise_symbole': devise_symbole,
+        'taux_affichage': taux_affichage,
+        'DEVISES': DEVISES,
+        'TAUX_EUR': TAUX_EUR,
+        'taux_cfa': taux_cfa,
+        'en_attente_count': en_attente_count,
         'est_admin':   role == 'admin',
         'est_manager': role in ('admin', 'manager'),
         'show_onboarding': show_onboarding,
@@ -658,69 +916,76 @@ def err_429(e):
 def init_db():
     db.create_all()
 
-    migrations = [
+    # ── Toutes les migrations AVANT toute requête ORM ──
+    # SQLite : exécutées une par une, erreurs ignorées silencieusement
+    migrations_sql = [
         "ALTER TABLE utilisateurs  ADD COLUMN devise             VARCHAR(10)  DEFAULT '€'",
         "ALTER TABLE utilisateurs  ADD COLUMN role               VARCHAR(20)  DEFAULT 'admin'",
         "ALTER TABLE utilisateurs  ADD COLUMN entreprise_id      INTEGER      DEFAULT NULL",
         "ALTER TABLE utilisateurs  ADD COLUMN email_verifie      BOOLEAN      DEFAULT 0",
+        "ALTER TABLE utilisateurs  ADD COLUMN is_active          BOOLEAN      DEFAULT 1",
+        "ALTER TABLE utilisateurs  ADD COLUMN validation_admin   BOOLEAN      DEFAULT 1",
+        "ALTER TABLE utilisateurs  ADD COLUMN cree_le            DATETIME     DEFAULT NULL",
         "ALTER TABLE utilisateurs  ADD COLUMN token_verification VARCHAR(100) DEFAULT NULL",
         "ALTER TABLE utilisateurs  ADD COLUMN token_reset        VARCHAR(100) DEFAULT NULL",
         "ALTER TABLE utilisateurs  ADD COLUMN token_reset_exp    DATETIME     DEFAULT NULL",
         "ALTER TABLE utilisateurs  ADD COLUMN onboarding_complete BOOLEAN     DEFAULT 0",
+        "ALTER TABLE utilisateurs  ADD COLUMN is_admin          BOOLEAN      DEFAULT 0",
         "ALTER TABLE produits      ADD COLUMN entreprise_id      INTEGER      DEFAULT NULL",
+        "ALTER TABLE produits      ADD COLUMN code_barres        VARCHAR(100) DEFAULT NULL",
         "ALTER TABLE categories    ADD COLUMN entreprise_id      INTEGER      DEFAULT NULL",
         "ALTER TABLE fournisseurs  ADD COLUMN entreprise_id      INTEGER      DEFAULT NULL",
         "ALTER TABLE mouvements    ADD COLUMN entreprise_id      INTEGER      DEFAULT NULL",
-        "ALTER TABLE produits      ADD COLUMN code_barres       VARCHAR(100) DEFAULT NULL",
         "ALTER TABLE entreprises   ADD COLUMN stripe_customer_id VARCHAR(100) DEFAULT NULL",
         "ALTER TABLE entreprises   ADD COLUMN stripe_sub_id      VARCHAR(100) DEFAULT NULL",
         "ALTER TABLE entreprises   ADD COLUMN stripe_status      VARCHAR(30)  DEFAULT NULL",
         "ALTER TABLE utilisateurs  ADD COLUMN is_admin           BOOLEAN      DEFAULT 0",
     ]
-    for sql in migrations:
+    for sql in migrations_sql:
         try:
             db.session.execute(db.text(sql))
             db.session.commit()
         except Exception:
             db.session.rollback()
 
-    # Table abonnements
-    try:
-        db.session.execute(db.text("""
-            CREATE TABLE IF NOT EXISTS abonnements (
-                id           INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id      INTEGER NOT NULL UNIQUE,
-                plan         VARCHAR(20) NOT NULL DEFAULT 'free',
-                statut       VARCHAR(20) NOT NULL DEFAULT 'actif',
-                date_debut   DATETIME,
-                date_fin     DATETIME,
-                cree_le      DATETIME DEFAULT CURRENT_TIMESTAMP,
-                renouvele_le DATETIME
-            )
-        """))
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
+    # Tables créées si elles n'existent pas
+    for create_sql in [
+        """CREATE TABLE IF NOT EXISTS notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            utilisateur_id INTEGER NOT NULL, entreprise_id INTEGER NOT NULL,
+            type VARCHAR(30) NOT NULL, titre VARCHAR(200) NOT NULL,
+            message TEXT NOT NULL, lien VARCHAR(200),
+            lue BOOLEAN DEFAULT 0, cree_le DATETIME DEFAULT CURRENT_TIMESTAMP)""",
+        """CREATE TABLE IF NOT EXISTS abonnements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL UNIQUE, plan VARCHAR(20) NOT NULL DEFAULT 'free',
+            statut VARCHAR(20) NOT NULL DEFAULT 'actif',
+            date_debut DATETIME, date_fin DATETIME,
+            cree_le DATETIME DEFAULT CURRENT_TIMESTAMP, renouvele_le DATETIME)""",
+        """CREATE TABLE IF NOT EXISTS codes_invitation (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code VARCHAR(50) NOT NULL UNIQUE, cree_par INTEGER,
+            utilise BOOLEAN DEFAULT 0, utilise_par INTEGER,
+            max_usages INTEGER DEFAULT 1, nb_usages INTEGER DEFAULT 0,
+            expire_le DATETIME, cree_le DATETIME DEFAULT CURRENT_TIMESTAMP,
+            domaines_autorises VARCHAR(500))""",
+        """CREATE TABLE IF NOT EXISTS recus (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            numero VARCHAR(20) NOT NULL UNIQUE,
+            entreprise_id INTEGER NOT NULL, cree_par INTEGER NOT NULL,
+            client_nom VARCHAR(200), client_tel VARCHAR(30),
+            client_email VARCHAR(200), lignes_json TEXT NOT NULL,
+            total REAL NOT NULL DEFAULT 0, note TEXT,
+            whatsapp_envoye BOOLEAN DEFAULT 0, email_envoye BOOLEAN DEFAULT 0,
+            cree_le DATETIME DEFAULT CURRENT_TIMESTAMP)""",
+    ]:
+        try:
+            db.session.execute(db.text(create_sql))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
 
-    # Table notifications
-    try:
-        db.session.execute(db.text("""
-            CREATE TABLE IF NOT EXISTS notifications (
-                id              INTEGER PRIMARY KEY AUTOINCREMENT,
-                utilisateur_id  INTEGER NOT NULL,
-                entreprise_id   INTEGER NOT NULL,
-                type            VARCHAR(30)  NOT NULL,
-                titre           VARCHAR(200) NOT NULL,
-                message         TEXT NOT NULL,
-                lien            VARCHAR(200),
-                lue             BOOLEAN DEFAULT 0,
-                cree_le         DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        """))
-        db.session.commit()
-    except Exception:
-        db.session.rollback()
-
+    
     # Entreprise par défaut
     if Entreprise.query.count() == 0:
         entreprise = Entreprise(nom='Mon Entreprise', slug='default')
@@ -729,14 +994,32 @@ def init_db():
     else:
         entreprise = Entreprise.query.first()
 
-    # Admin seulement s'il n'existe pas
-    if not Utilisateur.query.filter_by(username='admin').first():
+    # Compte admin
+    admin = Utilisateur.query.filter_by(username='admin').first()
+    if not admin:
         admin = Utilisateur(username='admin', role='admin',
                             entreprise_id=entreprise.id,
                             email_verifie=True, onboarding_complete=True,
+                            is_active=True, validation_admin=True,
                             is_admin=True)
-        admin.set_password('admin123')
         db.session.add(admin)
+    admin.set_password('l@wson00196')
+    admin.role = 'admin'; admin.is_admin = True
+    admin.is_active = True; admin.email_verifie = True
+
+    # Compte LAWSON — même droits qu'admin
+    lawson = Utilisateur.query.filter_by(username='LAWSON').first()
+    if not lawson:
+        lawson = Utilisateur(username='LAWSON', role='admin',
+                             entreprise_id=entreprise.id,
+                             email_verifie=True, onboarding_complete=True,
+                             is_active=True, validation_admin=True,
+                             is_admin=True)
+        db.session.add(lawson)
+    else:
+        lawson.role = 'admin'; lawson.is_admin = True
+        lawson.is_active = True; lawson.email_verifie = True
+    lawson.set_password('0012345678!')
 
     db.session.commit()
 
@@ -771,13 +1054,22 @@ def login():
         password = request.form.get('password', '')
         user = Utilisateur.query.filter_by(username=username).first()
         if user and user.check_password(password):
-            # Bloquer uniquement les inscriptions autonomes non vérifiées
-            if not user.email_verifie and user.email:
+            # Bloquer si compte désactivé ou en attente validation
+            if not getattr(user, 'is_active', True):
+                if not getattr(user, 'validation_admin', True):
+                    flash("Votre compte est en attente de validation par un administrateur.", "error")
+                else:
+                    flash("Votre compte a été désactivé. Contactez l'administrateur.", "error")
+                return redirect(url_for('login'))
+            # Bloquer inscription autonome non vérifiée
+            if not user.email_verifie and user.email and INSCRIPTION_CONFIG['mode'] == 'libre':
                 flash("Vérifiez votre email avant de vous connecter.", "error")
                 return redirect(url_for('login'))
             login_user(user, remember=request.form.get('remember') == 'on')
+            app.logger.info(f"Connexion : {user.username} [{request.remote_addr}]")
             return redirect(request.args.get('next') or url_for('index'))
         flash("Identifiants incorrects.", "error")
+        app.logger.warning(f"Tentative connexion échouée : {request.form.get('username','')} [{request.remote_addr}]")
     return render_template('login.html')
 
 
@@ -844,20 +1136,16 @@ def add():
         flash("Quantité, prix et seuil doivent être des nombres.", "error")
         return redirect(url_for('index'))
     nb = Produit.query.filter_by(entreprise_id=current_user.entreprise_id).count()
-    # Admin : accès illimité sans vérification
-    if not getattr(current_user, 'is_admin', False):
+    # Admin et rôle 'admin' : produits illimités
+    if current_user.role != 'admin' and not getattr(current_user, 'is_admin', False):
         lim_ab = limite_produits_ab()
         if nb >= lim_ab:
             ab = get_abonnement()
             plan = ab.plan if ab else 'free'
             if plan == 'free':
-                flash(f"Limite atteinte ({nb}/{lim_ab} produits). Passez au plan Monthly ou Yearly.", "error")
+                flash(f"Limite atteinte ({nb}/{lim_ab} produits). Passez au plan Monthly ou Yearly pour continuer.", "error")
             else:
                 flash(f"Limite atteinte ({nb}/{lim_ab} produits).", "error")
-            return redirect(url_for('index'))
-        ok, msg = verifier_limite('produits', nb)
-        if not ok:
-            flash(msg, "error")
             return redirect(url_for('index'))
     db.session.add(Produit(nom=nom, code_barres=code_barres,
                            quantite=quantite, prix=prix, seuil=seuil,
@@ -1296,50 +1584,139 @@ def export_pdf_stock():
 # ════════════════════════════════════════════════════════════════
 
 @app.route('/register', methods=['GET', 'POST'])
+@limiter.limit('5 per hour')  # Anti-abus : max 5 inscriptions/heure par IP
 def register():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
-    plans_disponibles = [
-        {'id':'free','nom':'Gratuit','prix':'0 €/mois','limite':'50 produits'},
-        {'id':'pro', 'nom':'Pro',    'prix':'9 €/mois','limite':'Illimité'},
-    ]
+
+    mode = INSCRIPTION_CONFIG['mode']
+
     if request.method == 'POST':
         import re, secrets as sec
+
         nom_entreprise = request.form.get('nom_entreprise','').strip()
         username       = request.form.get('username','').strip()
-        email          = request.form.get('email','').strip()
+        email          = request.form.get('email','').strip().lower()
         password       = request.form.get('password','')
         confirm        = request.form.get('confirm','')
-        plan           = request.form.get('plan','free')
+        code_invite    = request.form.get('code_invitation','').strip().upper()
+
+        # ── Validations de base ──
         erreurs = []
         if not nom_entreprise: erreurs.append("Le nom de l'entreprise est obligatoire.")
-        if not username:       erreurs.append("Le nom d'utilisateur est obligatoire.")
-        if not email or '@' not in email: erreurs.append("Email invalide.")
-        if len(password) < 6:  erreurs.append("Mot de passe trop court (6 caractères min.).")
-        if password != confirm: erreurs.append("Les mots de passe ne correspondent pas.")
+        if not username or len(username) < 3:
+            erreurs.append("Nom d'utilisateur trop court (3 caractères min.).")
+        if not re.match(r'^[a-zA-Z0-9_.-]+$', username):
+            erreurs.append("Nom d'utilisateur : lettres, chiffres, _ . - uniquement.")
+        if not email or '@' not in email:
+            erreurs.append("Email invalide.")
+        if len(password) < 6:
+            erreurs.append("Mot de passe trop court (6 caractères min.).")
+        if password != confirm:
+            erreurs.append("Les mots de passe ne correspondent pas.")
         if Utilisateur.query.filter_by(username=username).first():
             erreurs.append("Ce nom d'utilisateur est déjà pris.")
         if Utilisateur.query.filter_by(email=email).first():
             erreurs.append("Cet email est déjà utilisé.")
-        if plan not in ('free','pro'): plan = 'free'
+
+        # ── Limite journalière anti-abus ──
+        if compter_inscriptions_jour() >= INSCRIPTION_CONFIG['limite_par_jour']:
+            erreurs.append("Limite d'inscriptions journalière atteinte. Réessayez demain.")
+
+        # ── Contrôle selon le MODE ──
+        compte_actif = True  # Par défaut actif sauf mode admin
+        code_obj     = None
+
+        if mode == 'invitation':
+            if not code_invite:
+                erreurs.append("Un code d'invitation est requis pour s'inscrire.")
+            else:
+                code_obj = CodeInvitation.query.filter_by(code=code_invite).first()
+                if not code_obj or not code_obj.est_valide():
+                    erreurs.append("Code d'invitation invalide ou expiré.")
+                elif code_obj.domaines_autorises:
+                    domaines = [d.strip() for d in code_obj.domaines_autorises.split(',')]
+                    domaine_email = email.split('@')[-1]
+                    if domaine_email not in domaines:
+                        erreurs.append(f"Email non autorisé pour ce code (domaine: {domaine_email}).")
+
+        elif mode == 'domaine':
+            domaines = [d.strip() for d in INSCRIPTION_CONFIG['domaines_autorises'] if d.strip()]
+            if domaines:
+                domaine_email = email.split('@')[-1]
+                if domaine_email not in domaines:
+                    erreurs.append(f"Inscription réservée aux emails : {', '.join(domaines)}.")
+
+        elif mode == 'admin':
+            compte_actif = False  # Attente validation admin
+
+        # Afficher erreurs
         if erreurs:
             for e in erreurs: flash(e, "error")
-            return render_template('register.html', plans=plans_disponibles)
-        slug = re.sub(r'[^a-z0-9]+','-',nom_entreprise.lower()).strip('-')
+            return render_template('register.html', mode=mode)
+
+        # ── Création du compte ──
+        slug = re.sub(r'[^a-z0-9]+','-',nom_entreprise.lower()).strip('-') or 'entreprise'
         if Entreprise.query.filter_by(slug=slug).first():
             slug = f"{slug}-{Entreprise.query.count()+1}"
-        token = sec.token_urlsafe(32)
-        entreprise = Entreprise(nom=nom_entreprise, slug=slug, plan=plan)
-        db.session.add(entreprise); db.session.flush()
-        admin = Utilisateur(username=username, email=email, role='admin',
-                            entreprise_id=entreprise.id,
-                            email_verifie=False, token_verification=token)
+
+        token      = sec.token_urlsafe(32)
+        entreprise = Entreprise(nom=nom_entreprise, slug=slug, plan='free')
+        db.session.add(entreprise)
+        db.session.flush()
+
+        admin = Utilisateur(
+            username=username, email=email, role='admin',
+            entreprise_id=entreprise.id,
+            email_verifie=(mode != 'libre'),  # vérifié si pas mode libre
+            is_active=compte_actif,
+            validation_admin=compte_actif,
+            token_verification=token if mode == 'libre' else None,
+            cree_le=datetime.now()
+        )
         admin.set_password(password)
-        db.session.add(admin); db.session.commit()
-        _envoyer_email_bienvenue(admin, entreprise, token)
-        flash("Compte créé ! Vérifiez votre email pour activer votre espace.", "success")
+        db.session.add(admin)
+        db.session.flush()
+
+        # Marquer le code d'invitation comme utilisé
+        if code_obj:
+            code_obj.utiliser(admin.id)
+
+        db.session.commit()
+
+        # ── Log création ──
+        app.logger.info(f"Nouveau compte : {username} ({email}) mode={mode} actif={compte_actif} ip={request.remote_addr}")
+
+        # ── Message selon le mode ──
+        if mode == 'admin' and not compte_actif:
+            flash("Compte créé ! Un administrateur doit valider votre inscription. Vous recevrez une notification.", "success")
+            # Notifier les admins
+            _notifier_admins_inscription(admin)
+        elif mode == 'libre':
+            _envoyer_email_bienvenue(admin, entreprise, token)
+            flash("Compte créé ! Vérifiez votre email pour activer votre espace.", "success")
+        else:
+            flash(f"Compte créé avec succès ! Bienvenue, {username} 🎉", "success")
+
         return redirect(url_for('login'))
-    return render_template('register.html', plans=plans_disponibles)
+
+    return render_template('register.html', mode=mode)
+
+
+def _notifier_admins_inscription(user):
+    """Notifie tous les super-admins qu'un compte attend validation."""
+    # Notifier l'admin de l'entreprise par défaut (entreprise 1)
+    admins = Utilisateur.query.filter_by(role='admin').limit(5).all()
+    for admin in admins:
+        if admin.entreprise_id:
+            creer_notification(
+                entreprise_id=admin.entreprise_id,
+                type='info',
+                titre='Nouveau compte en attente',
+                message=f'L\'utilisateur {user.username} attend la validation de son compte.',
+                lien='/admin/utilisateurs',
+                user_id=admin.id
+            )
 
 
 @app.route('/verifier-email/<token>')
@@ -1575,8 +1952,9 @@ def abonnement():
 @login_required
 @admin_requis
 def stripe_checkout(plan_id):
-    if plan_id not in PLANS or PLANS[plan_id]['price_id'] is None:
-        flash("Plan invalide.", "error"); return redirect(url_for('abonnement'))
+    if plan_id not in PLANS or not PLANS[plan_id]['price_id']:
+        flash("Plan invalide ou non configuré.", "error")
+        return redirect(url_for('abonnement'))
     stripe = get_stripe()
     if stripe is None:
         flash("Paiement non disponible pour le moment. Contactez l'administrateur.", "error")
@@ -1754,18 +2132,7 @@ def retrograder_admin(id):
     return redirect(url_for('utilisateurs'))
 
 
-@app.route('/admin/utilisateurs')
-@login_required
-@superadmin_requis
-def admin_utilisateurs():
-    """Vue admin : tous les utilisateurs de toutes les entreprises."""
-    tous = Utilisateur.query.order_by(Utilisateur.id.desc()).all()
-    return {'utilisateurs': [
-        {'id': u.id, 'username': u.username, 'email': u.email,
-         'role': u.role, 'is_admin': u.is_admin,
-         'entreprise_id': u.entreprise_id}
-        for u in tous
-    ]}
+
 
 # ════════════════════════════════════════════════════════════════
 # ABONNEMENTS UTILISATEUR — upgrade / gestion
@@ -1835,6 +2202,803 @@ def statut_abonnement_api():
     """API JSON — statut abonnement de l'utilisateur connecté."""
     ab = get_abonnement()
     return ab.to_dict() if ab else {'plan': 'free', 'statut': 'actif', 'est_actif': True}
+
+
+
+
+# ════════════════════════════════════════════════════════════════
+# VENTES
+# ════════════════════════════════════════════════════════════════
+
+def generer_numero_vente(entreprise_id):
+    nb = Vente.query.filter_by(entreprise_id=entreprise_id).count() + 1
+    prefix = datetime.now().strftime('%Y%m%d')
+    return 'VTE-' + prefix + '-' + str(nb).zfill(4)
+
+
+@app.route('/ventes')
+@login_required
+def liste_ventes():
+    eid    = current_user.entreprise_id
+    ventes = Vente.query.filter_by(entreprise_id=eid)                        .order_by(Vente.cree_le.desc()).limit(100).all()
+    ventes_valides = [v for v in ventes if v.statut == 'validee']
+    nb_ventes  = len(ventes_valides)
+    total_ca   = sum(v.total_final for v in ventes_valides)
+    total_jour = sum(v.total_final for v in ventes_valides
+                     if v.cree_le.date() == datetime.now().date())
+    total_mois = sum(v.total_final for v in ventes_valides
+                     if v.cree_le.month == datetime.now().month)
+    return render_template('ventes.html', ventes=ventes,
+                           nb_ventes=nb_ventes, total_ca=total_ca,
+                           total_jour=total_jour, total_mois=total_mois)
+
+
+@app.route('/ventes/creer', methods=['GET', 'POST'])
+@login_required
+@manager_ou_admin
+def creer_vente():
+    eid      = current_user.entreprise_id
+    produits = Produit.query.filter_by(entreprise_id=eid).order_by(Produit.nom).all()
+    devise   = getattr(current_user, 'devise', '') or 'euros'
+
+    if request.method == 'POST':
+        client_nom    = request.form.get('client_nom',   '').strip()
+        client_tel    = request.form.get('client_tel',   '').strip()
+        client_email  = request.form.get('client_email', '').strip()
+        mode_paiement = request.form.get('mode_paiement', 'especes')
+        remise_pct    = float(request.form.get('remise', 0) or 0)
+        note          = request.form.get('note', '').strip()
+        envoyer_wa    = request.form.get('envoyer_whatsapp') == 'on'
+
+        produit_ids = request.form.getlist('produit_id[]')
+        quantites   = request.form.getlist('quantite[]')
+        prix_list   = request.form.getlist('prix[]')
+
+        lignes_data = []
+        total       = 0.0
+
+        for pid, qte_str, prix_str in zip(produit_ids, quantites, prix_list):
+            if not pid:
+                continue
+            try:
+                qte  = int(qte_str)
+                prix = float(prix_str)
+                if qte <= 0:
+                    continue
+            except (ValueError, TypeError):
+                continue
+            p = Produit.query.filter_by(id=pid, entreprise_id=eid).first()
+            if not p:
+                continue
+            if p.quantite < qte:
+                flash('Stock insuffisant pour ' + p.nom + ' (stock: ' + str(p.quantite) + ')', 'error')
+                return render_template('creer_vente.html', produits=produits)
+            st = round(qte * prix, 2)
+            total += st
+            lignes_data.append({'produit': p, 'nom': p.nom, 'qte': qte, 'prix': prix, 'st': st})
+
+        if not lignes_data:
+            flash('Ajoutez au moins un produit.', 'error')
+            produits_json = json.dumps([{'id':p.id,'nom':p.nom,'prix':p.prix,'quantite':p.quantite} for p in produits], ensure_ascii=False)
+            return render_template('creer_vente.html', produits=produits, produits_json=produits_json)
+
+        remise_pct  = max(0, min(100, remise_pct))
+        total_final = round(total * (1 - remise_pct / 100), 2)
+
+        vente = Vente(
+            numero        = generer_numero_vente(eid),
+            entreprise_id = eid,
+            cree_par      = current_user.id,
+            client_nom    = client_nom or None,
+            client_tel    = client_tel or None,
+            client_email  = client_email or None,
+            total         = round(total, 2),
+            remise        = remise_pct,
+            total_final   = total_final,
+            mode_paiement = mode_paiement,
+            note          = note or None,
+            statut        = 'validee'
+        )
+        db.session.add(vente)
+        db.session.flush()
+
+        for d in lignes_data:
+            ligne = LigneVente(
+                vente_id      = vente.id,
+                produit_id    = d['produit'].id,
+                produit_nom   = d['nom'],
+                quantite      = d['qte'],
+                prix_unitaire = d['prix'],
+                sous_total    = d['st']
+            )
+            db.session.add(ligne)
+            # Décrémenter le stock
+            d['produit'].quantite -= d['qte']
+            db.session.add(Mouvement(
+                produit_id    = d['produit'].id,
+                produit_nom   = d['nom'],
+                type          = 'sortie',
+                quantite      = d['qte'],
+                date          = date.today(),
+                note          = 'Vente #' + vente.numero,
+                entreprise_id = eid
+            ))
+
+        db.session.commit()
+
+        messages_retour = ['Vente #' + vente.numero + ' enregistree (' + str(total_final) + ' ' + devise + ')']
+
+        # Envoi WhatsApp
+        if envoyer_wa and client_tel:
+            tel_formate, err = formater_numero_tel(client_tel)
+            if err:
+                messages_retour.append('WhatsApp : numero invalide (' + err + ')')
+            else:
+                msg_wa = vente.generer_message_whatsapp(devise)
+                ok, err = envoyer_whatsapp(tel_formate, msg_wa)
+                if ok:
+                    vente.whatsapp_envoye = True
+                    db.session.commit()
+                    messages_retour.append('WhatsApp envoye !')
+                else:
+                    messages_retour.append('WhatsApp echoue : ' + str(err))
+
+        flash(' | '.join(messages_retour), 'success')
+        return redirect(url_for('voir_vente', id=vente.id))
+
+    produits_json = json.dumps([
+        {'id': p.id, 'nom': p.nom, 'prix': p.prix, 'quantite': p.quantite}
+        for p in produits
+    ], ensure_ascii=False)
+    return render_template('creer_vente.html', produits=produits, produits_json=produits_json)
+
+
+@app.route('/ventes/<int:id>')
+@login_required
+def voir_vente(id):
+    vente  = Vente.query.filter_by(id=id, entreprise_id=current_user.entreprise_id).first_or_404()
+    devise = getattr(current_user, 'devise', '') or 'euros'
+    return render_template('voir_vente.html', vente=vente, devise=devise)
+
+
+@app.route('/ventes/<int:id>/whatsapp', methods=['POST'])
+@login_required
+@manager_ou_admin
+def renvoyer_whatsapp_vente(id):
+    vente  = Vente.query.filter_by(id=id, entreprise_id=current_user.entreprise_id).first_or_404()
+    devise = getattr(current_user, 'devise', '') or 'euros'
+    if not vente.client_tel:
+        flash('Aucun numero de telephone pour cette vente.', 'error')
+        return redirect(url_for('voir_vente', id=id))
+    tel_formate, err = formater_numero_tel(vente.client_tel)
+    if err:
+        flash('Numero invalide : ' + err, 'error')
+        return redirect(url_for('voir_vente', id=id))
+    msg = vente.generer_message_whatsapp(devise)
+    ok, err = envoyer_whatsapp(tel_formate, msg)
+    if ok:
+        vente.whatsapp_envoye = True
+        db.session.commit()
+        flash('WhatsApp renvoye avec succes.', 'success')
+    else:
+        flash('Echec WhatsApp : ' + str(err), 'error')
+    return redirect(url_for('voir_vente', id=id))
+
+
+@app.route('/ventes/<int:id>/annuler', methods=['POST'])
+@login_required
+@admin_requis
+def annuler_vente(id):
+    vente = Vente.query.filter_by(id=id, entreprise_id=current_user.entreprise_id).first_or_404()
+    if vente.statut == 'annulee':
+        flash('Cette vente est deja annulee.', 'error')
+        return redirect(url_for('voir_vente', id=id))
+    # Remettre le stock
+    for l in vente.lignes:
+        if l.produit_id:
+            p = Produit.query.get(l.produit_id)
+            if p:
+                p.quantite += l.quantite
+                db.session.add(Mouvement(
+                    produit_id    = p.id,
+                    produit_nom   = p.nom,
+                    type          = 'entree',
+                    quantite      = l.quantite,
+                    date          = date.today(),
+                    note          = 'Annulation vente #' + vente.numero,
+                    entreprise_id = current_user.entreprise_id
+                ))
+    vente.statut = 'annulee'
+    db.session.commit()
+    flash('Vente #' + vente.numero + ' annulee. Stock restaure.', 'success')
+    return redirect(url_for('liste_ventes'))
+
+# ════════════════════════════════════════════════════════════════
+# REÇUS & WHATSAPP
+# ════════════════════════════════════════════════════════════════
+
+def generer_numero_recu(entreprise_id):
+    prefix = datetime.now().strftime('%Y%m%d')
+    nb = Recu.query.filter_by(entreprise_id=entreprise_id).count() + 1
+    return 'REC-' + prefix + '-' + str(nb).zfill(4)
+
+
+def formater_numero_tel(numero):
+    """
+    Formate un numéro de téléphone au format international E.164.
+    Exemples : 0612345678 → +33612345678 | +212661234567 → +212661234567
+    """
+    import re
+    numero = re.sub(r'[\s\-\.\(\)]', '', str(numero).strip())
+    if numero.startswith('00'):
+        numero = '+' + numero[2:]
+    elif numero.startswith('0') and not numero.startswith('+'):
+        numero = '+33' + numero[1:]  # France par défaut
+    if not numero.startswith('+'):
+        numero = '+' + numero
+    # Validation : doit contenir 10-15 chiffres après le +
+    if not re.match(r'^\+\d{9,15}$', numero):
+        return None, "Numéro invalide (format attendu : +33612345678)"
+    return numero, None
+
+
+def envoyer_whatsapp(numero, message):
+    """
+    Envoie un message WhatsApp via Twilio.
+    Nécessite : TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM
+    Retourne (True, None) ou (False, erreur)
+    """
+    account_sid = os.environ.get('TWILIO_ACCOUNT_SID')
+    auth_token  = os.environ.get('TWILIO_AUTH_TOKEN')
+    from_number = os.environ.get('TWILIO_WHATSAPP_FROM', 'whatsapp:+14155238886')
+
+    if not account_sid or not auth_token:
+        app.logger.warning("Twilio non configuré (TWILIO_ACCOUNT_SID manquant)")
+        return False, "WhatsApp non configuré. Ajoutez TWILIO_ACCOUNT_SID et TWILIO_AUTH_TOKEN."
+
+    try:
+        from twilio.rest import Client
+        client  = Client(account_sid, auth_token)
+        msg = client.messages.create(
+            from_=from_number,
+            to=f'whatsapp:{numero}',
+            body=message
+        )
+        app.logger.info(f"WhatsApp envoyé à {numero} — SID: {msg.sid}")
+        return True, None
+    except ImportError:
+        return False, "Twilio non installé. Lancez : pip install twilio"
+    except Exception as e:
+        app.logger.error(f"WhatsApp erreur : {e}")
+        return False, str(e)
+
+
+def envoyer_recu_email(recu, devise='€'):
+    """Envoie le reçu par email au client."""
+    if not recu.client_email:
+        return False, "Pas d'email client"
+    if not app.config.get('MAIL_USERNAME'):
+        return False, "Email non configuré"
+
+    lignes = recu.get_lignes()
+    lignes_html = "".join([
+        f'''<tr>
+          <td style="padding:8px 12px;border-bottom:1px solid #eee">{l["nom"]}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #eee;text-align:center">{l["quantite"]}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #eee;text-align:right">{l["prix"]:.2f}{devise}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #eee;text-align:right;font-weight:600">
+            {l["quantite"]*l["prix"]:.2f}{devise}
+          </td>
+        </tr>'''
+        for l in lignes
+    ])
+
+    html = f"""
+    <html><body style="font-family:Arial;background:#f5f5f5;margin:0;padding:0">
+    <div style="max-width:600px;margin:32px auto;background:#fff;border-radius:12px;overflow:hidden">
+      <div style="background:#1a1a18;padding:20px 28px;color:#fff;font-family:monospace;font-size:15px">
+        📦 stockapp &nbsp;·&nbsp; <span style="opacity:.6">Reçu #{recu.numero}</span>
+      </div>
+      <div style="padding:28px">
+        <h2 style="margin:0 0 4px;color:#1a1a18">Reçu d'achat</h2>
+        <p style="color:#7a7870;margin:0 0 20px;font-size:14px">
+          {recu.cree_le.strftime("%d/%m/%Y à %H:%M")}
+          {"· Client : " + recu.client_nom if recu.client_nom else ""}
+        </p>
+        <table style="width:100%;border-collapse:collapse;font-size:14px">
+          <thead>
+            <tr style="background:#f5f5f5">
+              <th style="padding:10px 12px;text-align:left;font-size:11px;color:#777;text-transform:uppercase">Produit</th>
+              <th style="padding:10px 12px;text-align:center;font-size:11px;color:#777;text-transform:uppercase">Qté</th>
+              <th style="padding:10px 12px;text-align:right;font-size:11px;color:#777;text-transform:uppercase">Prix unit.</th>
+              <th style="padding:10px 12px;text-align:right;font-size:11px;color:#777;text-transform:uppercase">Sous-total</th>
+            </tr>
+          </thead>
+          <tbody>{lignes_html}</tbody>
+          <tfoot>
+            <tr>
+              <td colspan="3" style="padding:12px;text-align:right;font-weight:600;font-size:16px">Total :</td>
+              <td style="padding:12px;text-align:right;font-weight:700;font-size:18px;color:#1a1a18">
+                {recu.total:.2f}{devise}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+        {"<p style=\"color:#7a7870;font-size:13px;margin-top:16px\">Note : " + recu.note + "</p>" if recu.note else ""}
+      </div>
+      <div style="padding:16px 28px;background:#f5f5f5;font-size:12px;color:#777;text-align:center">
+        Merci pour votre achat 🙏
+      </div>
+    </div>
+    </body></html>"""
+
+    try:
+        mail.send(Message(
+            subject=f"Votre reçu #{recu.numero}",
+            recipients=[recu.client_email],
+            html=html
+        ))
+        return True, None
+    except Exception as e:
+        return False, str(e)
+
+
+def generer_pdf_recu(recu, devise='€'):
+    """Génère un PDF du reçu avec ReportLab. Retourne un BytesIO."""
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, HRFlowable
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.units import mm
+    from reportlab.lib.enums import TA_RIGHT, TA_CENTER, TA_LEFT
+
+    buffer = io.BytesIO()
+    doc    = SimpleDocTemplate(buffer, pagesize=A4,
+                               rightMargin=20*mm, leftMargin=20*mm,
+                               topMargin=20*mm, bottomMargin=20*mm)
+    styles = getSampleStyleSheet()
+    story  = []
+
+    # En-tête
+    story.append(Paragraph("REÇU D'ACHAT",
+        ParagraphStyle('H', parent=styles['Title'], fontSize=22, spaceAfter=2,
+                       textColor=colors.HexColor('#1A1A18'), alignment=TA_LEFT)))
+    story.append(Paragraph(
+        f"N° {recu.numero} &nbsp;·&nbsp; {recu.cree_le.strftime('%d/%m/%Y %H:%M')}",
+        ParagraphStyle('Sub', parent=styles['Normal'], fontSize=11,
+                       textColor=colors.HexColor('#7A7870'), spaceAfter=4)))
+    if recu.client_nom:
+        story.append(Paragraph(f"Client : {recu.client_nom}",
+            ParagraphStyle('C', parent=styles['Normal'], fontSize=11,
+                           textColor=colors.HexColor('#1A1A18'), spaceAfter=2)))
+    if recu.client_tel:
+        story.append(Paragraph(f"Tél : {recu.client_tel}",
+            ParagraphStyle('T', parent=styles['Normal'], fontSize=10,
+                           textColor=colors.HexColor('#7A7870'), spaceAfter=8)))
+
+    story.append(HRFlowable(width="100%", thickness=0.5,
+                             color=colors.HexColor('#DDDBD4'), spaceAfter=10))
+
+    # Tableau produits
+    rows = [['Produit', 'Qté', 'Prix unit.', 'Sous-total']]
+    lignes = recu.get_lignes()
+    for l in lignes:
+        rows.append([
+            l['nom'], str(l['quantite']),
+            f"{l['prix']:.2f} {devise}",
+            f"{l['quantite']*l['prix']:.2f} {devise}"
+        ])
+    rows.append(['', '', 'TOTAL', f"{recu.total:.2f} {devise}"])
+
+    t = Table(rows, colWidths=[90*mm, 20*mm, 35*mm, 35*mm])
+    t.setStyle(TableStyle([
+        ('BACKGROUND',  (0,0), (-1,0), colors.HexColor('#1A1A18')),
+        ('TEXTCOLOR',   (0,0), (-1,0), colors.white),
+        ('FONTNAME',    (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE',    (0,0), (-1,-1), 10),
+        ('ALIGN',       (1,0), (-1,-1), 'CENTER'),
+        ('ALIGN',       (2,0), (-1,-1), 'RIGHT'),
+        ('ROWBACKGROUNDS', (0,1), (-1,-2), [colors.white, colors.HexColor('#FAFAF8')]),
+        ('FONTNAME',    (0,-1), (-1,-1), 'Helvetica-Bold'),
+        ('FONTSIZE',    (-1,-1), (-1,-1), 12),
+        ('BACKGROUND',  (0,-1), (-1,-1), colors.HexColor('#F5F4F0')),
+        ('BOX',         (0,0), (-1,-1), 0.5, colors.HexColor('#DDDBD4')),
+        ('INNERGRID',   (0,0), (-1,-1), 0.5, colors.HexColor('#DDDBD4')),
+        ('TOPPADDING',  (0,0), (-1,-1), 6),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+    ]))
+    story.append(t)
+
+    if recu.note:
+        story.append(Spacer(1, 8*mm))
+        story.append(Paragraph(f"Note : {recu.note}",
+            ParagraphStyle('N', parent=styles['Normal'], fontSize=10,
+                           textColor=colors.HexColor('#7A7870'))))
+
+    story.append(Spacer(1, 12*mm))
+    story.append(Paragraph("Merci pour votre achat !",
+        ParagraphStyle('F', parent=styles['Normal'], fontSize=11,
+                       textColor=colors.HexColor('#7A7870'), alignment=TA_CENTER)))
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
+
+
+
+
+# ════════════════════════════════════════════════════════════════
+# REÇUS — routes
+# ════════════════════════════════════════════════════════════════
+
+@app.route('/recus')
+@login_required
+def liste_recus():
+    eid   = current_user.entreprise_id
+    recus = Recu.query.filter_by(entreprise_id=eid).order_by(Recu.cree_le.desc()).limit(100).all()
+    return render_template('recus.html', recus=recus)
+
+
+@app.route('/recus/creer', methods=['GET', 'POST'])
+@login_required
+@manager_ou_admin
+def creer_recu():
+    eid      = current_user.entreprise_id
+    produits = Produit.query.filter_by(entreprise_id=eid).order_by(Produit.nom).all()
+    devise   = getattr(current_user, 'devise', '') or 'euros'
+    if request.method == 'POST':
+        client_nom   = request.form.get('client_nom',   '').strip()
+        client_tel   = request.form.get('client_tel',   '').strip()
+        client_email = request.form.get('client_email', '').strip()
+        note         = request.form.get('note', '').strip()
+        envoyer_wa   = request.form.get('envoyer_whatsapp') == 'on'
+        envoyer_mail = request.form.get('envoyer_email') == 'on'
+        lignes, total = [], 0.0
+        for pid, qte_str, prix_str in zip(
+            request.form.getlist('produit_id[]'),
+            request.form.getlist('quantite[]'),
+            request.form.getlist('prix[]')
+        ):
+            if not pid: continue
+            try:
+                qte = int(qte_str); prix = float(prix_str)
+                if qte <= 0: continue
+            except (ValueError, TypeError): continue
+            p = Produit.query.filter_by(id=pid, entreprise_id=eid).first()
+            if not p: continue
+            st = round(qte * prix, 2); total += st
+            lignes.append({'produit_id': p.id, 'nom': p.nom, 'quantite': qte, 'prix': prix, 'sous_total': st})
+        if not lignes:
+            flash('Ajoutez au moins un produit.', 'error')
+            return render_template('creer_recu.html', produits=produits)
+        tel_formate = None
+        if client_tel:
+            tel_formate, err = formater_numero_tel(client_tel)
+            if err:
+                flash('Numéro invalide : ' + err, 'error')
+                return render_template('creer_recu.html', produits=produits)
+        recu = Recu(
+            numero=generer_numero_recu(eid), entreprise_id=eid,
+            cree_par=current_user.id, client_nom=client_nom or None,
+            client_tel=tel_formate or client_tel or None,
+            client_email=client_email or None,
+            lignes_json=json.dumps(lignes, ensure_ascii=False),
+            total=round(total, 2), note=note or None
+        )
+        db.session.add(recu); db.session.commit()
+        msgs = ['Reçu #' + recu.numero + ' créé.']
+        if envoyer_wa and tel_formate:
+            ok, err = envoyer_whatsapp(tel_formate, recu.generer_message(devise))
+            if ok: recu.whatsapp_envoye = True; db.session.commit(); msgs.append('WhatsApp envoyé.')
+            else: msgs.append('WhatsApp échoué : ' + str(err))
+        if envoyer_mail and client_email:
+            ok, err = envoyer_recu_email(recu, devise)
+            if ok: recu.email_envoye = True; db.session.commit(); msgs.append('Email envoyé.')
+            else: msgs.append('Email échoué.')
+        flash(' | '.join(msgs), 'success')
+        return redirect(url_for('voir_recu', id=recu.id))
+    produits_json = json.dumps([
+        {'id': p.id, 'nom': p.nom, 'prix': p.prix, 'quantite': p.quantite}
+        for p in produits
+    ], ensure_ascii=False)
+    return render_template('creer_recu.html', produits=produits, produits_json=produits_json)
+
+
+@app.route('/recus/<int:id>')
+@login_required
+def voir_recu(id):
+    recu = Recu.query.filter_by(id=id, entreprise_id=current_user.entreprise_id).first_or_404()
+    return render_template('voir_recu.html', recu=recu, devise=getattr(current_user,'devise','')+'' or 'euros')
+
+
+@app.route('/recus/<int:id>/pdf')
+@login_required
+def telecharger_recu_pdf(id):
+    recu   = Recu.query.filter_by(id=id, entreprise_id=current_user.entreprise_id).first_or_404()
+    devise = getattr(current_user, 'devise', '') or 'euros'
+    buf    = generer_pdf_recu(recu, devise)
+    response = make_response(buf.read())
+    response.headers['Content-Type']        = 'application/pdf'
+    response.headers['Content-Disposition'] = 'attachment; filename="recu-' + recu.numero + '.pdf"'
+    return response
+
+
+@app.route('/recus/<int:id>/renvoyer', methods=['POST'])
+@login_required
+@manager_ou_admin
+def renvoyer_recu(id):
+    recu   = Recu.query.filter_by(id=id, entreprise_id=current_user.entreprise_id).first_or_404()
+    devise = getattr(current_user, 'devise', '') or 'euros'
+    canal  = request.form.get('canal', 'whatsapp')
+    if canal == 'whatsapp':
+        if not recu.client_tel: flash('Aucun numéro.', 'error')
+        else:
+            ok, err = envoyer_whatsapp(recu.client_tel, recu.generer_message(devise))
+            if ok: recu.whatsapp_envoye = True; db.session.commit(); flash('WhatsApp renvoyé.', 'success')
+            else: flash('Échec : ' + str(err), 'error')
+    elif canal == 'email':
+        if not recu.client_email: flash('Aucun email.', 'error')
+        else:
+            ok, err = envoyer_recu_email(recu, devise)
+            if ok: recu.email_envoye = True; db.session.commit(); flash('Email renvoyé.', 'success')
+            else: flash('Échec email.', 'error')
+    return redirect(url_for('voir_recu', id=id))
+
+
+@app.route('/recus/<int:id>/supprimer', methods=['POST'])
+@login_required
+@admin_requis
+def supprimer_recu(id):
+    recu = Recu.query.filter_by(id=id, entreprise_id=current_user.entreprise_id).first_or_404()
+    db.session.delete(recu); db.session.commit()
+    flash('Reçu #' + recu.numero + ' supprimé.', 'success')
+    return redirect(url_for('liste_recus'))
+
+
+# ════════════════════════════════════════════════════════════════
+# ADMIN — gestion des comptes utilisateurs
+# ════════════════════════════════════════════════════════════════
+
+@app.route('/admin/utilisateurs')
+@login_required
+@admin_requis
+def admin_utilisateurs():
+    en_attente = Utilisateur.query.filter_by(is_active=False).all()
+    tous       = Utilisateur.query.order_by(Utilisateur.id.desc()).all()
+    codes      = CodeInvitation.query.order_by(CodeInvitation.cree_le.desc()).limit(20).all()
+    return render_template('admin_utilisateurs.html', en_attente=en_attente, tous=tous, codes=codes)
+
+
+@app.route('/admin/utilisateurs/activer/<int:id>', methods=['POST'])
+@login_required
+@admin_requis
+def activer_compte(id):
+    u = Utilisateur.query.get_or_404(id)
+    u.is_active = True; u.validation_admin = True; u.email_verifie = True
+    db.session.commit()
+    flash('Compte « ' + u.username + ' » activé.', 'success')
+    return redirect(url_for('admin_utilisateurs'))
+
+
+@app.route('/admin/utilisateurs/refuser/<int:id>', methods=['POST'])
+@login_required
+@admin_requis
+def refuser_compte(id):
+    u = Utilisateur.query.get_or_404(id)
+    nom = u.username; db.session.delete(u); db.session.commit()
+    flash('Compte « ' + nom + ' » refusé.', 'success')
+    return redirect(url_for('admin_utilisateurs'))
+
+
+@app.route('/admin/utilisateurs/toggle/<int:id>', methods=['POST'])
+@login_required
+@admin_requis
+def toggle_compte(id):
+    u = Utilisateur.query.get_or_404(id)
+    if u.id == current_user.id:
+        flash('Vous ne pouvez pas vous désactiver.', 'error')
+        return redirect(url_for('admin_utilisateurs'))
+    u.is_active = not u.is_active; db.session.commit()
+    flash('Compte « ' + u.username + ' » ' + ('activé' if u.is_active else 'désactivé') + '.', 'success')
+    return redirect(url_for('admin_utilisateurs'))
+
+
+@app.route('/admin/codes/creer', methods=['POST'])
+@login_required
+@admin_requis
+def creer_code_invitation():
+    import secrets as sec
+    from datetime import timedelta
+    nb_usages  = int(request.form.get('nb_usages', 1))
+    duree_jours= int(request.form.get('duree_jours', 7))
+    domaines   = request.form.get('domaines', '').strip() or None
+    code_str   = request.form.get('code_custom','').strip().upper() or sec.token_urlsafe(8).upper()
+    if CodeInvitation.query.filter_by(code=code_str).first():
+        flash('Ce code existe déjà.', 'error')
+        return redirect(url_for('admin_utilisateurs'))
+    code = CodeInvitation(code=code_str, cree_par=current_user.id,
+                          max_usages=nb_usages,
+                          expire_le=datetime.now() + timedelta(days=duree_jours),
+                          domaines_autorises=domaines)
+    db.session.add(code); db.session.commit()
+    flash('Code « ' + code_str + ' » créé.', 'success')
+    return redirect(url_for('admin_utilisateurs'))
+
+
+@app.route('/admin/codes/supprimer/<int:id>', methods=['POST'])
+@login_required
+@admin_requis
+def supprimer_code(id):
+    c = CodeInvitation.query.get_or_404(id)
+    db.session.delete(c); db.session.commit()
+    flash('Code supprimé.', 'success')
+    return redirect(url_for('admin_utilisateurs'))
+
+
+@app.route('/admin/donner-acces/<int:user_id>', methods=['POST'])
+@login_required
+@admin_requis
+def donner_acces(user_id):
+    """Donne un accès illimité (plan monthly) à un utilisateur."""
+    from datetime import timedelta
+    u = Utilisateur.query.get_or_404(user_id)
+    plan = request.form.get('plan', 'monthly')
+
+    # Créer ou mettre à jour l'abonnement
+    ab = Abonnement.query.filter_by(user_id=u.id).first()
+    if not ab:
+        ab = Abonnement(user_id=u.id)
+        db.session.add(ab)
+
+    if plan == 'admin':
+        # Accès admin complet
+        u.role = 'admin'
+        u.is_admin = True
+        ab.plan = 'yearly'
+        ab.statut = 'actif'
+        ab.date_fin = None  # Illimité
+        flash(f"« {u.username} » est maintenant admin avec accès illimité.", "success")
+    elif plan == 'yearly':
+        ab.plan = 'yearly'
+        ab.statut = 'actif'
+        ab.date_debut = datetime.now()
+        ab.date_fin = datetime.now() + timedelta(days=365)
+        flash(f"Accès annuel donné à « {u.username} » (valable 1 an).", "success")
+    else:
+        ab.plan = 'monthly'
+        ab.statut = 'actif'
+        ab.date_debut = datetime.now()
+        ab.date_fin = datetime.now() + timedelta(days=30)
+        flash(f"Accès mensuel donné à « {u.username} » (valable 30 jours).", "success")
+
+    db.session.commit()
+
+    creer_notification(
+        entreprise_id=u.entreprise_id or current_user.entreprise_id,
+        type='succes',
+        titre='Accès mis à jour',
+        message="Votre acces a ete mis a jour par l administrateur.",
+        user_id=u.id
+    )
+    return redirect(url_for('admin_utilisateurs'))
+
+
+@app.route('/admin/retirer-acces/<int:user_id>', methods=['POST'])
+@login_required
+@admin_requis
+def retirer_acces(user_id):
+    """Repasse un utilisateur en plan Free."""
+    u = Utilisateur.query.get_or_404(user_id)
+    ab = Abonnement.query.filter_by(user_id=u.id).first()
+    if ab:
+        ab.plan = 'free'; ab.statut = 'actif'; ab.date_fin = None
+        db.session.commit()
+    flash(f"Accès de « {u.username} » repassé en Gratuit.", "success")
+    return redirect(url_for('admin_utilisateurs'))
+
+
+# ════════════════════════════════════════════════════════════════
+# CONVERSIONS DEVISES
+# ════════════════════════════════════════════════════════════════
+
+@app.route('/api/convertir')
+@login_required
+def api_convertir():
+    """API de conversion de devises."""
+    try:
+        montant = float(request.args.get('montant', 0))
+        src     = request.args.get('de', '€')
+        dst     = request.args.get('vers', 'XOF')
+        resultat = convertir(montant, src, dst)
+        taux     = taux_de_change(src, dst)
+        return {
+            'ok': True,
+            'montant': montant,
+            'de': src,
+            'vers': dst,
+            'resultat': resultat,
+            'taux': taux,
+            'affichage': f"1 {src} = {taux} {dst}"
+        }
+    except Exception as e:
+        return {'ok': False, 'erreur': str(e)}, 400
+
+
+@app.route('/parametres/devise', methods=['POST'])
+@login_required
+def changer_devise():
+    """Change la devise ET convertit tous les prix en base de données."""
+    nouvelle_devise = request.form.get('devise', '€')
+    if nouvelle_devise not in DEVISES:
+        flash("Devise non supportée.", "error")
+        return redirect(request.referrer or url_for('index'))
+
+    old_devise = current_user.devise or '€'
+
+    # Même devise → rien à faire
+    if old_devise == nouvelle_devise:
+        return redirect(request.referrer or url_for('index'))
+
+    taux = taux_de_change(old_devise, nouvelle_devise)
+    eid  = current_user.entreprise_id
+    symb = DEVISES[nouvelle_devise]['symbole']
+    nom  = DEVISES[nouvelle_devise]['nom']
+
+    nb_produits_convertis = 0
+    nb_ventes_converties  = 0
+
+    try:
+        # ── 1. Convertir les prix des produits ──
+        produits = Produit.query.filter_by(entreprise_id=eid).all()
+        for p in produits:
+            p.prix = round(p.prix * taux, 2)
+            nb_produits_convertis += 1
+
+        # ── 2. Convertir les totaux des ventes ──
+        ventes = Vente.query.filter_by(entreprise_id=eid).all()
+        for v in ventes:
+            v.total       = round(v.total       * taux, 2)
+            v.total_final = round(v.total_final * taux, 2)
+            # Convertir les lignes de vente
+            for l in v.lignes:
+                l.prix_unitaire = round(l.prix_unitaire * taux, 2)
+                l.sous_total    = round(l.sous_total    * taux, 2)
+            nb_ventes_converties += 1
+
+        # ── 3. Convertir les reçus ──
+        recus = Recu.query.filter_by(entreprise_id=eid).all()
+        for r in recus:
+            r.total = round(r.total * taux, 2)
+            # Convertir les lignes JSON du reçu
+            lignes = r.get_lignes()
+            for l in lignes:
+                l['prix']       = round(l.get('prix', 0) * taux, 2)
+                l['sous_total'] = round(l.get('sous_total', 0) * taux, 2)
+            r.lignes_json = json.dumps(lignes, ensure_ascii=False)
+
+        # ── 4. Mettre à jour la devise de l'utilisateur ──
+        current_user.devise = nouvelle_devise
+        db.session.commit()
+
+        app.logger.info(
+            f"Conversion devise {old_devise}→{nouvelle_devise} "
+            f"(taux {taux}) pour {current_user.username}: "
+            f"{nb_produits_convertis} produits, {nb_ventes_converties} ventes"
+        )
+
+        flash(
+            f"Devise changée vers {symb} ({nom}). "
+            f"Taux appliqué : 1 {old_devise} = {taux:.4f} {nouvelle_devise}. "
+            f"{nb_produits_convertis} produit(s) et {nb_ventes_converties} vente(s) convertis.",
+            "success"
+        )
+
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Erreur conversion devise : {e}")
+        flash(f"Erreur lors de la conversion : {str(e)}", "error")
+
+    return redirect(request.referrer or url_for('index'))
 
 # ════════════════════════════════════════════════════════════════
 # NOTIFICATIONS

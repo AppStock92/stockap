@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block title %}Nouveau reçu — StockApp{% endblock %}
+
+{% block head %}
+<style>
+  .ligne-produit{background:var(--bs-body-bg);border-radius:10px;padding:12px;margin-bottom:8px;
+                 border:1px solid var(--bs-border-color)}
+  .ligne-produit .remove-btn{background:none;border:none;color:var(--muted);cursor:pointer;
+                              font-size:18px;line-height:1;padding:0;transition:color .15s}
+  .ligne-produit .remove-btn:hover{color:#C0392B}
+  #total-display{font-size:22px;font-weight:700;font-family:var(--mono)}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <span class="page-label mb-0">Nouveau reçu</span>
+  <a href="{{ url_for('liste_recus') }}" class="btn btn-outline-secondary btn-sm">← Reçus</a>
+</div>
+
+<form method="POST" id="recuForm">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+  <div class="row g-4">
+
+    <!-- ═══ Produits ═══ -->
+    <div class="col-12 col-lg-7">
+      <div class="card p-4 mb-3">
+        <div class="card-header-label mb-3">Produits achetés</div>
+
+        <div id="lignes-container"></div>
+
+        <button type="button" class="btn btn-outline-secondary w-100 mt-2" onclick="ajouterLigne()">
+          + Ajouter un produit
+        </button>
+      </div>
+
+      <!-- Total -->
+      <div class="card p-4" style="border-left:3px solid #1D9E75">
+        <div class="d-flex justify-content-between align-items-center">
+          <span style="font-size:16px;font-weight:500">Total</span>
+          <span id="total-display">0.00 {{ devise }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ Client & envoi ═══ -->
+    <div class="col-12 col-lg-5">
+      <div class="card p-4 mb-3">
+        <div class="card-header-label mb-3">Informations client</div>
+        <div class="mb-3">
+          <label class="form-label">Nom du client</label>
+          <input type="text" name="client_nom" class="form-control" placeholder="Jean Dupont">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Téléphone (WhatsApp)</label>
+          <input type="tel" name="client_tel" class="form-control"
+                 placeholder="+33612345678 ou 0612345678"
+                 oninput="validerTel(this)">
+          <div class="form-text" id="tel-feedback"></div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Email</label>
+          <input type="email" name="client_email" class="form-control" placeholder="client@email.com">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Note (optionnel)</label>
+          <textarea name="note" class="form-control" rows="2" placeholder="Merci pour votre commande…"></textarea>
+        </div>
+      </div>
+
+      <!-- Options d'envoi -->
+      <div class="card p-4 mb-3">
+        <div class="card-header-label mb-3">Envoyer le reçu</div>
+        <div class="form-check mb-2">
+          <input type="checkbox" name="envoyer_whatsapp" id="chkWA" class="form-check-input" checked>
+          <label for="chkWA" class="form-check-label" style="font-size:14px">
+            📱 Via WhatsApp
+            <span style="font-size:11px;color:var(--muted)">(Twilio requis)</span>
+          </label>
+        </div>
+        <div class="form-check">
+          <input type="checkbox" name="envoyer_email" id="chkEmail" class="form-check-input">
+          <label for="chkEmail" class="form-check-label" style="font-size:14px">
+            📧 Par email
+          </label>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-brand w-100" style="height:50px;font-size:15px">
+        💾 Créer & envoyer le reçu
+      </button>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const PRODUITS = {{ produits | tojson | safe }};
+const DEVISE   = "{{ devise }}";
+let ligneCount = 0;
+
+function ajouterLigne(produitId=null, qte=1, prix=null) {
+  const container = document.getElementById('lignes-container');
+  const idx = ligneCount++;
+  const div = document.createElement('div');
+  div.className = 'ligne-produit';
+  div.id = `ligne-${idx}`;
+
+  const options = PRODUITS.map(p =>
+    `<option value="${p.id}" data-prix="${p.prix}" ${p.id==produitId?'selected':''}>${p.nom}</option>`
+  ).join('');
+
+  div.innerHTML = `
+    <div class="row g-2 align-items-end">
+      <div class="col-12 col-sm-5">
+        <label class="form-label">Produit</label>
+        <select name="produit_id[]" class="form-select" onchange="onProduitChange(this, ${idx})">
+          <option value="">— Choisir —</option>
+          ${options}
+        </select>
+      </div>
+      <div class="col-5 col-sm-3">
+        <label class="form-label">Quantité</label>
+        <input type="number" name="quantite[]" class="form-control" value="${qte}" min="1"
+               oninput="calculerTotal()">
+      </div>
+      <div class="col-5 col-sm-3">
+        <label class="form-label">Prix unit. (${DEVISE})</label>
+        <input type="number" name="prix[]" id="prix-${idx}" class="form-control"
+               value="${prix || ''}" step="0.01" min="0" oninput="calculerTotal()">
+      </div>
+      <div class="col-2 col-sm-1 d-flex align-items-end pb-1">
+        <button type="button" class="remove-btn" onclick="supprimerLigne(${idx})">×</button>
+      </div>
+    </div>
+    <div class="text-end mt-1" style="font-size:12px;color:var(--muted)" id="sous-total-${idx}"></div>
+  `;
+  container.appendChild(div);
+
+  if (produitId) {
+    const sel = div.querySelector('select');
+    sel.value = produitId;
+    onProduitChange(sel, idx);
+  }
+  calculerTotal();
+}
+
+function onProduitChange(sel, idx) {
+  const opt = sel.options[sel.selectedIndex];
+  const prix = parseFloat(opt.dataset.prix || 0);
+  const prixInput = document.getElementById(`prix-${idx}`);
+  if (prixInput && !prixInput.value) prixInput.value = prix.toFixed(2);
+  calculerTotal();
+}
+
+function supprimerLigne(idx) {
+  document.getElementById(`ligne-${idx}`)?.remove();
+  calculerTotal();
+}
+
+function calculerTotal() {
+  let total = 0;
+  document.querySelectorAll('.ligne-produit').forEach((div, i) => {
+    const qte  = parseFloat(div.querySelector('[name="quantite[]"]')?.value || 0);
+    const prix = parseFloat(div.querySelector('[name="prix[]"]')?.value || 0);
+    const st   = qte * prix;
+    total += st;
+    const stEl = div.querySelector('[id^="sous-total"]');
+    if (stEl && qte > 0 && prix > 0) {
+      stEl.textContent = `Sous-total : ${st.toFixed(2)} ${DEVISE}`;
+    }
+  });
+  document.getElementById('total-display').textContent = `${total.toFixed(2)} ${DEVISE}`;
+}
+
+function validerTel(input) {
+  const val = input.value.trim();
+  const fb  = document.getElementById('tel-feedback');
+  if (!val) { fb.textContent = ''; return; }
+  // Format basique
+  const clean = val.replace(/[\s\-\.\(\)]/g,'');
+  if (/^\+?\d{9,15}$/.test(clean)) {
+    fb.textContent = '✓ Format valide';
+    fb.style.color = '#1E7E4A';
+  } else {
+    fb.textContent = 'Format : +33612345678 ou 0612345678';
+    fb.style.color = '#C0392B';
+  }
+}
+
+// Validation avant envoi
+document.getElementById('recuForm').addEventListener('submit', function(e) {
+  const lignes = document.querySelectorAll('[name="produit_id[]"]');
+  let hasProduct = false;
+  lignes.forEach(s => { if (s.value) hasProduct = true; });
+  if (!hasProduct) {
+    e.preventDefault();
+    alert('Ajoutez au moins un produit.');
+  }
+});
+
+// Ajouter une première ligne au chargement
+ajouterLigne();
+</script>
+{% endblock %}

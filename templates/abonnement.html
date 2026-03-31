@@ -6,18 +6,17 @@
 
 <div class="row g-4">
 
-  <!-- Plan actuel -->
   <div class="col-12 col-md-5">
     <div class="card p-4 mb-3">
       <div class="card-header-label mb-3">Votre plan actuel</div>
 
-      {% set plan = plans[entreprise.plan] if entreprise and entreprise.plan in plans else plans.free %}
+      {% set plan = plans[plan_actuel] if plan_actuel in plans else plans.free %}
       <div class="d-flex align-items-center gap-3 mb-3">
         <div style="width:48px;height:48px;border-radius:12px;
                     background:{% if est_pro %}#1A1A18{% else %}var(--bs-body-bg){% endif %};
                     border:1px solid var(--bs-border-color);
                     display:flex;align-items:center;justify-content:center;font-size:22px">
-          {% if est_pro %}⭐{% else %}📦{% endif %}
+          {% if plan_actuel == 'yearly' %}🏆{% elif plan_actuel == 'monthly' %}⭐{% else %}📦{% endif %}
         </div>
         <div>
           <div style="font-size:18px;font-weight:600">{{ plan.nom }}</div>
@@ -27,7 +26,7 @@
 
       {% if entreprise %}
       {% set nb = entreprise.produits|length %}
-      {% set lim = limites.produits if limites else 50 %}
+      {% set lim = limites.produits if limites else 10 %}
       <div class="mb-4">
         <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px">
           <span style="color:var(--muted)">Produits utilisés</span>
@@ -44,21 +43,26 @@
 
       {% if not est_pro %}
       <div class="d-flex flex-column gap-2">
-        {% if plan_actuel == 'free' %}
-        <form method="POST" action="{{ url_for('stripe_checkout', plan_id='starter') }}">
+        <form method="POST" action="{{ url_for('stripe_checkout', plan_id='monthly') }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button type="submit" class="btn btn-outline-secondary w-100">
-            <i class="bi bi-arrow-up-circle me-1"></i>Passer au Starter — 2 €/mois
+            <i class="bi bi-arrow-up-circle me-1"></i>Mensuel — 2 €/mois
           </button>
         </form>
-        {% endif %}
-        <form method="POST" action="{{ url_for('stripe_checkout', plan_id='pro') }}">
+        <form method="POST" action="{{ url_for('stripe_checkout', plan_id='yearly') }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button type="submit" class="btn btn-brand w-100">
-            <i class="bi bi-arrow-up-circle me-1"></i>Passer au Pro — 13 €/mois
+            <i class="bi bi-arrow-up-circle me-1"></i>Annuel — 15 €/an ⭐ Meilleur prix
           </button>
         </form>
       </div>
+      {% elif plan_actuel == 'monthly' %}
+      <form method="POST" action="{{ url_for('stripe_checkout', plan_id='yearly') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit" class="btn btn-brand w-100">
+          Passer à l'annuel — 15 €/an (économisez 9 €)
+        </button>
+      </form>
       {% elif entreprise and entreprise.stripe_customer_id %}
       <form method="POST" action="{{ url_for('stripe_portail') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -69,35 +73,42 @@
       {% endif %}
     </div>
 
-    <div class="card p-4" style="font-size:13px;color:var(--muted)">
+    <div class="card p-4">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
         <i class="bi bi-shield-check" style="color:#1D9E75;font-size:16px"></i>
-        <span style="color:var(--bs-body-color);font-weight:500">Paiements sécurisés</span>
+        <span style="font-weight:500;font-size:14px">Paiements sécurisés</span>
       </div>
-      Les paiements sont traités par <strong style="color:var(--bs-body-color)">Stripe</strong>, certifié PCI-DSS. Nous ne stockons aucune donnée de carte bancaire.
-      <a href="{{ url_for('tarifs') }}" style="display:block;margin-top:10px;color:#185FA5;text-decoration:none;font-weight:500">
+      <p style="font-size:13px;color:var(--muted);margin:0 0 10px">
+        Les paiements sont traités par <strong style="color:var(--bs-body-color)">Stripe</strong>, certifié PCI-DSS. Nous ne stockons aucune donnée de carte bancaire.
+      </p>
+      <a href="{{ url_for('tarifs') }}" style="font-size:13px;color:#185FA5;text-decoration:none;font-weight:500">
         Voir tous les tarifs →
       </a>
     </div>
   </div>
 
-  <!-- Comparaison plans -->
   <div class="col-12 col-md-7">
     <div class="card p-4">
       <div class="card-header-label mb-3">Comparer les plans</div>
       <div class="row g-3">
         {% for plan_id, plan in plans.items() %}
-        <div class="col-{% if plans|length == 3 %}4{% else %}6{% endif %}">
-          <div style="border:{% if plan_actuel==plan_id %}2px solid var(--bs-body-color){% else %}1px solid var(--bs-border-color){% endif %};
+        <div class="col-4">
+          <div style="border:{% if plan_actuel==plan_id %}2px solid var(--bs-body-color){% elif plan.badge %}2px solid #EF9F27{% else %}1px solid var(--bs-border-color){% endif %};
                       border-radius:12px;padding:1rem;position:relative">
             {% if plan_actuel == plan_id %}
             <span style="position:absolute;top:-10px;left:12px;background:var(--bs-body-color);
                          color:var(--bs-body-bg);font-size:10px;padding:2px 8px;
                          border-radius:10px;font-family:var(--mono)">Actuel</span>
+            {% elif plan.badge %}
+            <span style="position:absolute;top:-10px;left:12px;background:#EF9F27;
+                         color:#fff;font-size:10px;padding:2px 8px;
+                         border-radius:10px;font-family:var(--mono)">{{ plan.badge }}</span>
             {% endif %}
             <div style="font-size:13px;font-weight:600;margin-bottom:2px">{{ plan.nom }}</div>
             <div style="font-size:20px;font-weight:700;margin-bottom:.6rem">
-              {{ plan.prix }} €<span style="font-size:12px;font-weight:400;color:var(--muted)">/mois</span>
+              {{ plan.prix }} €<span style="font-size:11px;font-weight:400;color:var(--muted)">
+                {% if plan_id == 'yearly' %}/an{% else %}/mois{% endif %}
+              </span>
             </div>
             {% for feat in plan.features %}
             <div style="font-size:11px;color:var(--muted);padding:2px 0;display:flex;gap:5px">

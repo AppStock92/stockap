@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Reçu {{ recu.numero }} — StockApp{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <span class="page-label mb-0">Reçu {{ recu.numero }}</span>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('telecharger_recu_pdf', id=recu.id) }}" class="btn btn-outline-secondary btn-sm">
+      📄 PDF
+    </a>
+    <a href="{{ url_for('liste_recus') }}" class="btn btn-outline-secondary btn-sm">← Retour</a>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-12 col-md-7">
+    <div class="card p-4">
+      <!-- En-tête -->
+      <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+          <div style="font-size:20px;font-weight:700;font-family:var(--mono)">{{ recu.numero }}</div>
+          <div style="font-size:13px;color:var(--muted)">{{ recu.cree_le.strftime('%d/%m/%Y à %H:%M') }}</div>
+        </div>
+        <div style="font-size:22px;font-weight:700">{{ recu.total | round(2) }} {{ devise }}</div>
+      </div>
+
+      {% if recu.client_nom or recu.client_tel or recu.client_email %}
+      <div style="background:var(--bs-body-bg);border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px">
+        <div class="card-header-label mb-2">Client</div>
+        {% if recu.client_nom %}<div style="font-weight:500">{{ recu.client_nom }}</div>{% endif %}
+        {% if recu.client_tel %}<div style="color:var(--muted)">📱 {{ recu.client_tel }}</div>{% endif %}
+        {% if recu.client_email %}<div style="color:var(--muted)">📧 {{ recu.client_email }}</div>{% endif %}
+      </div>
+      {% endif %}
+
+      <!-- Lignes -->
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Produit</th>
+            <th style="text-align:center">Qté</th>
+            <th style="text-align:right">Prix unit.</th>
+            <th style="text-align:right">Sous-total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for l in recu.get_lignes() %}
+          <tr>
+            <td>{{ l.nom }}</td>
+            <td style="text-align:center;font-family:var(--mono)">{{ l.quantite }}</td>
+            <td style="text-align:right;font-family:var(--mono)">{{ l.prix | round(2) }} {{ devise }}</td>
+            <td style="text-align:right;font-family:var(--mono);font-weight:500">
+              {{ l.sous_total | round(2) }} {{ devise }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="3" style="text-align:right;font-weight:600;font-size:15px">Total</td>
+            <td style="text-align:right;font-weight:700;font-size:18px;font-family:var(--mono)">
+              {{ recu.total | round(2) }} {{ devise }}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+
+      {% if recu.note %}
+      <div style="font-size:13px;color:var(--muted);margin-top:8px;font-style:italic">
+        📝 {{ recu.note }}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-12 col-md-5">
+    <!-- Statut envois -->
+    <div class="card p-4 mb-3">
+      <div class="card-header-label mb-3">Statut des envois</div>
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <span style="font-size:20px">📱</span>
+        <span style="font-size:14px">WhatsApp</span>
+        <span class="ms-auto" style="font-size:12px;padding:2px 8px;border-radius:10px;
+              background:{% if recu.whatsapp_envoye %}#EFF8F3{% else %}var(--bs-body-bg){% endif %};
+              color:{% if recu.whatsapp_envoye %}#1E7E4A{% else %}var(--muted){% endif %}">
+          {% if recu.whatsapp_envoye %}✓ Envoyé{% else %}Non envoyé{% endif %}
+        </span>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        <span style="font-size:20px">📧</span>
+        <span style="font-size:14px">Email</span>
+        <span class="ms-auto" style="font-size:12px;padding:2px 8px;border-radius:10px;
+              background:{% if recu.email_envoye %}#EFF8F3{% else %}var(--bs-body-bg){% endif %};
+              color:{% if recu.email_envoye %}#1E7E4A{% else %}var(--muted){% endif %}">
+          {% if recu.email_envoye %}✓ Envoyé{% else %}Non envoyé{% endif %}
+        </span>
+      </div>
+    </div>
+
+    <!-- Renvoyer -->
+    <div class="card p-4 mb-3">
+      <div class="card-header-label mb-3">Renvoyer le reçu</div>
+      {% if recu.client_tel %}
+      <form method="POST" action="{{ url_for('renvoyer_recu', id=recu.id) }}" class="mb-2">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="canal" value="whatsapp">
+        <button type="submit" class="btn btn-outline-secondary w-100">
+          📱 Renvoyer par WhatsApp
+        </button>
+      </form>
+      {% endif %}
+      {% if recu.client_email %}
+      <form method="POST" action="{{ url_for('renvoyer_recu', id=recu.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="canal" value="email">
+        <button type="submit" class="btn btn-outline-secondary w-100">
+          📧 Renvoyer par email
+        </button>
+      </form>
+      {% endif %}
+      {% if not recu.client_tel and not recu.client_email %}
+      <p style="font-size:13px;color:var(--muted);margin:0">Aucun contact client enregistré.</p>
+      {% endif %}
+    </div>
+
+    <!-- Supprimer -->
+    <form method="POST" action="{{ url_for('supprimer_recu', id=recu.id) }}"
+          onsubmit="return confirm('Supprimer ce reçu ?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn btn-outline-danger w-100">🗑 Supprimer</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

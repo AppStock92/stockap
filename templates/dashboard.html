@@ -74,13 +74,17 @@ function animCount(el, target, suffix='') {
 }
 
 const total   = DATA.length;
-const valeur  = DATA.reduce((s,p) => s + p.quantite*p.prix, 0);
+const TAUX_AFF     = {{ taux_affichage | default(1) | float }};
+const DEVISE_SYMB  = '{{ devise_symbole | default(devise) }}';
+// Safety: if TAUX_AFF is 1 but devise is not € - means old server, ignore conversion
+const DEVISE_RAW   = '{{ devise }}';
+const valeur  = DATA.reduce((s,p) => s + p.quantite * p.prix * TAUX_AFF, 0);
 const alerte  = DATA.filter(p => p.quantite>0 && p.quantite<=p.seuil).length;
 const rupture = DATA.filter(p => p.quantite===0).length;
 const ok      = total - alerte - rupture;
 
 animCount(document.getElementById('k-refs'),    total);
-animCount(document.getElementById('k-val'),     Math.round(valeur), ' ' + (window.DEVISE || '€'));
+animCount(document.getElementById('k-val'),     Math.round(valeur), ' ' + DEVISE_SYMB);
 animCount(document.getElementById('k-alerte'),  alerte);
 animCount(document.getElementById('k-rupture'), rupture);
 
@@ -117,7 +121,7 @@ document.getElementById('top-list').innerHTML = top5.map((p,i)=>{
     <span style="font-family:${MONO};font-size:12px;color:#7A7870;width:16px">${i+1}</span>
     <span class="flex-grow-1 fw-500" style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px">${p.nom}</span>
     <div style="flex:1;height:6px;background:#F5F4F0;border-radius:3px;overflow:hidden;min-width:50px"><div style="width:${pct}%;height:100%;background:#185FA5;border-radius:3px"></div></div>
-    <span style="font-family:${MONO};font-size:12px;color:#7A7870;width:50px;text-align:right">${Math.round(v)} ${window.DEVISE||'€'}</span>
+    <span style="font-family:${MONO};font-size:12px;color:#7A7870;width:50px;text-align:right">${Math.round(v)} ${DEVISE_SYMB}</span>
   </div>`;
 }).join('');
 </script>
